@@ -1,12 +1,6 @@
 use anyhow::*;
-use code_timing_macros::time_snippet;
-use const_format::concatcp;
-use indoc::indoc;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
-
-const DAY: &str = "02";
-const INPUT_FILE: &str = concatcp!("input/", DAY, ".txt");
+use std::io::BufRead;
+use advent_of_code2024_rust::{run_on_day_input, day};
 
 fn read_reports<R: BufRead>(reader: R) -> Result<Vec<Vec<i64>>> {
     let reports: Vec<Vec<i64>> = reader.lines()
@@ -93,25 +87,19 @@ fn part2<R: BufRead>(reader: R) -> Result<usize> {
 }
 
 //noinspection DuplicatedCode
-fn part1_result() -> Result<()> {
-    let input_file = BufReader::new(File::open(INPUT_FILE)?);
-    let result = time_snippet!(part1(input_file)?);
-    println!("Result = {}", result);
-    Ok(())
+fn part1_result() -> Result<usize> {
+    run_on_day_input(day!(), part1)
 }
 
 
 //noinspection DuplicatedCode
-fn part2_result() -> Result<()> {
-    let input_file = BufReader::new(File::open(INPUT_FILE)?);
-    let result = time_snippet!(part2(input_file)?);
-    println!("Result = {}", result);
-    Ok(())
+fn part2_result() -> Result<usize> {
+    run_on_day_input(day!(), part2)
 }
 
 fn main() {
-    // part1_result().unwrap();
-    // part2_result().unwrap();
+    part1_result().unwrap();
+    part2_result().unwrap();
 }
 
 #[cfg(test)]
