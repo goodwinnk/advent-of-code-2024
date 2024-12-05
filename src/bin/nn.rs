@@ -1,7 +1,7 @@
+use advent_of_code2024_rust::{day, run_on_day_input};
 use anyhow::*;
 use indoc::indoc;
 use std::io::{BufRead, BufReader};
-use advent_of_code2024_rust::{day, run_on_day_input};
 
 fn part1<R: BufRead>(_reader: R) -> Result<i64> {
     Ok(0)
@@ -16,7 +16,7 @@ fn part1_result() -> Result<()> {
     Ok(())
 }
 
-fn part2_result() -> Result<()>  {
+fn part2_result() -> Result<()> {
     run_on_day_input(day!(), part2)?;
     Ok(())
 }
@@ -29,12 +29,18 @@ fn main() {
 #[cfg(test)]
 mod part1_tests {
     use super::*;
+
+    fn test_part1(expect: i64, input: &str) {
+        assert_eq!(expect, part1(BufReader::new(input.as_bytes())).unwrap());
+    }
+
     #[test]
     fn part1_example() {
-        const INPUT: &str = indoc! {"
-        "};
-
-        assert_eq!(0i64, part1(BufReader::new(INPUT.as_bytes())).unwrap());
+        test_part1(
+            0,
+            indoc! {"
+            "},
+        );
     }
 
     #[test]
@@ -47,13 +53,15 @@ mod part1_tests {
 mod part2_tests {
     use super::*;
 
+    fn test_part2(expect: i64, input: &str) {
+        assert_eq!(expect, part2(BufReader::new(input.as_bytes())).unwrap());
+    }
+
     #[test]
     fn part2_example() {
-        const INPUT: &str = indoc! {"
+        test_part2(0, indoc! {"
             1   2
-        "};
-
-        assert_eq!(0i64, part2(BufReader::new(INPUT.as_bytes())).unwrap());
+        "});
     }
 
     #[test]
