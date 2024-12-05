@@ -3,10 +3,12 @@ use anyhow::*;
 use indoc::indoc;
 use std::io::{BufRead, BufReader};
 
+//noinspection DuplicatedCode
 fn part1<R: BufRead>(_reader: R) -> Result<i64> {
     Ok(0)
 }
 
+//noinspection DuplicatedCode
 fn part2<R: BufRead>(_reader: R) -> Result<i64> {
     Ok(0)
 }
@@ -26,6 +28,7 @@ fn main() {
     part2_result().unwrap();
 }
 
+//noinspection SpellCheckingInspection
 #[cfg(test)]
 mod part1_tests {
     use super::*;
@@ -35,7 +38,7 @@ mod part1_tests {
     }
 
     #[test]
-    fn part1_example() {
+    fn test1() {
         test_part1(
             0,
             indoc! {"
@@ -49,6 +52,7 @@ mod part1_tests {
     }
 }
 
+//noinspection SpellCheckingInspection
 #[cfg(test)]
 mod part2_tests {
     use super::*;
@@ -58,7 +62,7 @@ mod part2_tests {
     }
 
     #[test]
-    fn part2_example() {
+    fn test1() {
         test_part2(0, indoc! {"
             1   2
         "});
