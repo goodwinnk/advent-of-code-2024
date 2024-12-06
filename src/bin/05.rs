@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use advent_of_code2024_rust::{day, run_on_day_input};
 use anyhow::*;
 use indoc::indoc;
@@ -62,6 +62,59 @@ fn is_in_correct_order(update: &LinkedHashSet<i32>, rules: &[(i32, i32)]) -> boo
 }
 
 //noinspection DuplicatedCode
+fn fix_order(update: &LinkedHashSet<i32>, rules: &[(i32, i32)]) -> Vec<i32> {
+    let working_rules = get_working_rules(update, rules);
+
+    let mut map_after: HashMap<i32, HashSet<i32>> = HashMap::new();
+    let mut map_before: HashMap<i32, HashSet<i32>> = HashMap::new();
+    for (before, after) in working_rules {
+        if map_after.contains_key(&after) {
+            map_after.get_mut(&after).unwrap().insert(before);
+        } else {
+            let mut set = HashSet::new();
+            set.insert(before);
+            map_after.insert(after, set);
+        }
+
+        if map_before.contains_key(&before) {
+            map_before.get_mut(&before).unwrap().insert(after);
+        } else {
+            let mut set = HashSet::new();
+            set.insert(after);
+            map_before.insert(before, set);
+        }
+    }
+
+    let mut result: Vec<i32> = vec![];
+    let mut next: HashSet<i32> = update.iter().filter(|page| !map_after.contains_key(page)).cloned().collect();
+    while !next.is_empty() {
+        assert_eq!(next.len(), 1);
+        let page = next.iter().next().unwrap();
+        result.push(*page);
+
+        let option = map_before.get(&page);
+        if option.is_some() {
+            let mut next_set = HashSet::new();
+
+            for after in option.unwrap() {
+                if map_after.contains_key(&after) {
+                    let after_set = map_after.get_mut(&after).unwrap();
+                    after_set.remove(&page);
+                    if after_set.is_empty() {
+                        next_set.insert(*after);
+                    }
+                }
+            }
+            next = next_set;
+        } else {
+            break
+        }
+    }
+
+    result
+}
+
+//noinspection DuplicatedCode
 fn part1<R: BufRead>(reader: R) -> Result<i64> {
     let input = parse_input(reader);
 
@@ -81,10 +134,11 @@ fn part2<R: BufRead>(reader: R) -> Result<i64> {
 
     Ok(input.updates.iter()
         .filter(|update| !is_in_correct_order(update, &input.rules))
-        .map(|update| {
-            let len = update.len();
+        .map(|update| fix_order(update, &input.rules))
+        .map(|fixed_update| {
+            let len = fixed_update.len();
             assert_eq!(len % 2, 1);
-            *(update.iter().clone().collect::<Vec<&i32>>()[len / 2]) as i64
+            *(fixed_update.iter().clone().collect::<Vec<&i32>>()[len / 2]) as i64
         }).
         sum())
 }
