@@ -3,10 +3,12 @@ use advent_of_code2024_rust::{day, run_on_day_input};
 use anyhow::*;
 use indoc::indoc;
 use std::io::{BufRead, BufReader};
+use itertools::Itertools;
+use linked_hash_set::LinkedHashSet;
 
 struct Input {
     rules: Vec<(i32, i32)>,
-    updates: Vec<Vec<i32>>
+    updates: Vec<LinkedHashSet<i32>>
 }
 
 fn parse_input<R: BufRead>(reader: R) -> Input {
@@ -25,10 +27,12 @@ fn parse_input<R: BufRead>(reader: R) -> Input {
         (before, after)
     }).collect();
 
-    let updates: Vec<Vec<i32>> = updates_strings.iter()
+    let updates: Vec<LinkedHashSet<i32>> = updates_strings.iter()
         .map(|line| {
             let pages: Vec<i32> = line.split(',').map(|page_str| page_str.parse::<i32>().unwrap()).collect();
-            pages
+            let mut pages_set = LinkedHashSet::new();
+            pages_set.extend(pages.clone());
+            pages_set
         }).collect();
 
     Input {
@@ -37,44 +41,52 @@ fn parse_input<R: BufRead>(reader: R) -> Input {
     }
 }
 
+// Function to extract working rules from a given rule
+fn get_working_rules(update: &LinkedHashSet<i32>, rules: &[(i32, i32)]) -> Vec<(i32, i32)> {
+    rules.iter()
+        .filter(|(before, after)| update.contains(before) && update.contains(after))
+        .map(|(before, after)| (*before, *after))
+        .collect()
+}
+
+// Function to check if the rules are in the correct order
+fn is_in_correct_order(update: &LinkedHashSet<i32>, rules: &[(i32, i32)]) -> bool {
+    let mut working_rules = get_working_rules(update, rules);
+    for page in update {
+        if working_rules.iter().any(|(_, after)| after == page) {
+            return false;
+        }
+        working_rules.retain(|(before, _)| before != page);
+    }
+    true
+}
+
 //noinspection DuplicatedCode
 fn part1<R: BufRead>(reader: R) -> Result<i64> {
     let input = parse_input(reader);
 
-    let working_rules = |rule: &Vec<i32>| -> Vec<(i32, i32)> {
-        let rule_set: HashSet<i32> = HashSet::from_iter(rule.iter().cloned());
-        input.rules.iter()
-            .filter(|(before, after)| {
-                rule_set.contains(before) && rule_set.contains(after)
-            })
-            .map(|(before, after)| (*before, *after))
-            .collect()
-    };
-
-    let is_right_order = |rule: &Vec<i32>| -> bool {
-        let mut working_rules = working_rules(rule);
-        for page in rule {
-            if working_rules.iter().any(|(before, after)| after == page) {
-                return false;
-            }
-            working_rules.retain(|(before, _)| before != page);
-        }
-        true
-    };
-
     Ok(input.updates.iter()
-        .filter(|rule| is_right_order(rule))
-        .map(|rule| {
-            let len = rule.len();
+        .filter(|update| is_in_correct_order(update, &input.rules))
+        .map(|update| {
+            let len = update.len();
             assert_eq!(len % 2, 1);
-            rule[len / 2] as i64
+            *(update.iter().clone().collect::<Vec<&i32>>()[len / 2]) as i64
         }).
         sum())
 }
 
 //noinspection DuplicatedCode
-fn part2<R: BufRead>(_reader: R) -> Result<i64> {
-    Ok(0)
+fn part2<R: BufRead>(reader: R) -> Result<i64> {
+    let input = parse_input(reader);
+
+    Ok(input.updates.iter()
+        .filter(|update| !is_in_correct_order(update, &input.rules))
+        .map(|update| {
+            let len = update.len();
+            assert_eq!(len % 2, 1);
+            *(update.iter().clone().collect::<Vec<&i32>>()[len / 2]) as i64
+        }).
+        sum())
 }
 
 fn part1_result() -> Result<()> {
@@ -155,7 +167,7 @@ mod part2_tests {
 
     #[test]
     fn test1() {
-        test_part2(0, indoc! {"
+        test_part2(123, indoc! {"
             47|53
             97|13
             97|61
