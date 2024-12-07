@@ -21,6 +21,15 @@ impl Direction {
             Direction::LEFT => Direction::UP,
         }
     }
+
+    fn turn_left(&self) -> Direction {
+        match self {
+            Direction::UP => Direction::LEFT,
+            Direction::RIGHT => Direction::UP,
+            Direction::DOWN => Direction::RIGHT,
+            Direction::LEFT => Direction::DOWN,
+        }
+    }
 }
 
 #[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
@@ -32,7 +41,7 @@ struct Position {
     coordinate: Coordinate
 }
 
-#[derive(Hash, Eq, PartialEq)]
+#[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
 enum Cell {
     Wall, Empty
 }
@@ -43,30 +52,65 @@ struct Map {
     y_size : usize
 }
 
+impl Map {
+    fn get_cell(&self, coordinate: Coordinate) -> Cell {
+        let y = coordinate.y;
+        let x = coordinate.x;
+        self.map[y][x]
+    }
+}
+
 #[derive(Hash, Eq, PartialEq)]
 enum Action {
     Move, TurnRight
 }
 
-fn step_forward_coordinate(position: &Position, map: &Map) -> Option<Coordinate> {
-    let next_position = match position.direction {
-        Direction::UP => (position.coordinate.x as i32, position.coordinate.y as i32 - 1),
-        Direction::RIGHT => (position.coordinate.x as i32 + 1, position.coordinate.y as i32),
-        Direction::DOWN => (position.coordinate.x as i32, position.coordinate.y as i32 + 1),
-        Direction::LEFT => (position.coordinate.x as i32 - 1, position.coordinate.y as i32)
-    };
-
-    if !(
-        (0..map.x_size as i32).contains(&next_position.0) &&
-            (0 .. map.y_size as i32).contains(&next_position.1)
-    ) {
-        return None;
+fn apply_shift(coordinate: &Coordinate, map: &Map, shift: (i32, i32)) -> Option<Coordinate> {
+    let (dx, dy) = shift;
+    let x = coordinate.x as i32 + dx;
+    let y = coordinate.y as i32 + dy;
+    if 0 <= x && x < map.x_size as i32 && 0 <= y && y < map.y_size as i32 {
+        Some(Coordinate {
+            x: x as usize,
+            y: y as usize
+        })
+    } else {
+        None
     }
+}
 
-    Some(Coordinate {
-        x: next_position.0 as usize,
-        y: next_position.1 as usize
-    })
+fn left(coordinate: &Coordinate, map: &Map) -> Option<Coordinate> {
+    apply_shift(coordinate, map, (-1, 0))
+}
+
+fn right(coordinate: &Coordinate, map: &Map) -> Option<Coordinate> {
+    apply_shift(coordinate, map, (1, 0))
+}
+
+fn up(coordinate: &Coordinate, map: &Map) -> Option<Coordinate> {
+    apply_shift(coordinate, map, (0, -1))
+}
+
+fn down(coordinate: &Coordinate, map: &Map) -> Option<Coordinate> {
+    apply_shift(coordinate, map, (0, 1))
+}
+
+fn left_hand_coordinate(position: &Position, map: &Map) -> Option<Coordinate> {
+    match position.direction {
+        Direction::UP => left(&position.coordinate, map),
+        Direction::RIGHT => up(&position.coordinate, map),
+        Direction::DOWN => right(&position.coordinate, map),
+        Direction::LEFT => down(&position.coordinate, map)
+    }
+}
+
+fn step_forward_coordinate(position: &Position, map: &Map) -> Option<Coordinate> {
+    match position.direction {
+        Direction::UP => up(&position.coordinate, map),
+        Direction::RIGHT => right(&position.coordinate, map),
+        Direction::DOWN => down(&position.coordinate, map),
+        Direction::LEFT => left(&position.coordinate, map)
+    }
 }
 
 fn move_guard(position: &Position, map: &Map) -> (Action, Option<Position>) {
@@ -89,32 +133,20 @@ fn move_guard(position: &Position, map: &Map) -> (Action, Option<Position>) {
 }
 
 fn backward_empty_cell(position: &Position, map: &Map) -> Option<Position> {
-    let backward_position = match position.direction {
-        Direction::UP => (position.coordinate.x as i32, position.coordinate.y as i32 + 1),
-        Direction::RIGHT => (position.coordinate.x as i32 - 1, position.coordinate.y as i32),
-        Direction::DOWN => (position.coordinate.x as i32, position.coordinate.y as i32 - 1),
-        Direction::LEFT => (position.coordinate.x as i32 + 1, position.coordinate.y as i32)
-    };
+    let backward_coordinate = match position.direction {
+        Direction::UP => down(&position.coordinate, map),
+        Direction::RIGHT => left(&position.coordinate, map),
+        Direction::DOWN => up(&position.coordinate, map),
+        Direction::LEFT => right(&position.coordinate, map)
+    }?;
 
-    if !(
-        (0..map.x_size as i32).contains(&backward_position.0) &&
-            (0 .. map.y_size as i32).contains(&backward_position.1)
-    ) {
-        return None;
-    }
-
-    let next_coordinate = Coordinate {
-        x: backward_position.0 as usize,
-        y: backward_position.1 as usize
-    };
-
-    if map.map[next_coordinate.y][next_coordinate.x] != Empty {
+    if map.get_cell(backward_coordinate) != Empty {
         return None;
     }
     
     Some(Position {
         direction: position.direction,
-        coordinate: next_coordinate
+        coordinate: backward_coordinate
     })
 }
 
@@ -259,8 +291,8 @@ fn part2<R: BufRead>(reader: R) -> Result<i64> {
             if trace.contains(&turn_right_position) || back_on_track.contains(&turn_right_position) {
                 let next_coordinate_opt = step_forward_coordinate(&next_position, &map);
                 if let Some(obstacle_coordinate) = next_coordinate_opt {
-                    if map.map[obstacle_coordinate.y][obstacle_coordinate.x] == Empty {
-                        if !(obstacle_coordinate.x == start.x && obstacle_coordinate.y == start.y) {
+                    if map.get_cell(obstacle_coordinate) == Empty {
+                        if obstacle_coordinate != start {
                             obstacles_coordinates.push(obstacle_coordinate);
                         }
                     }
