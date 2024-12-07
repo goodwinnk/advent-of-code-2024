@@ -94,8 +94,7 @@ fn visited_map(map: &Map, visited: &HashSet<Coordinate>) -> String {
     }).join("\n")
 }
 
-//noinspection DuplicatedCode
-fn part1<R: BufRead>(reader: R) -> Result<i64> {
+fn read_input<R: BufRead>(reader: R) -> Result<(Coordinate, Map)> {
     let mut start: Option<Coordinate> = None;
     let map: Vec<Vec<Cell>> = reader.lines()
         .flatten()
@@ -130,10 +129,16 @@ fn part1<R: BufRead>(reader: R) -> Result<i64> {
             y_size
         }
     };
+    Ok((start.unwrap(), map))
+}
+
+//noinspection DuplicatedCode
+fn part1<R: BufRead>(reader: R) -> Result<i64> {
+    let (start, map) = read_input(reader)?;
 
     let mut cur_position = Some(Position {
         direction: Direction::UP,
-        coordinate: start.unwrap()
+        coordinate: start
     });
 
     let mut trace: HashSet<Position> = HashSet::new();
