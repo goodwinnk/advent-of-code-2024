@@ -226,17 +226,17 @@ fn part2<R: BufRead>(reader: R) -> Result<i64> {
     };
 
     let mut back_on_track: HashSet<Position> = HashSet::new();
-    let build_back_on_track = |position: Position| -> Vec<Position> {
-        std::iter::successors(Some(position.clone()), |pos| {
+    let build_back_on_track = |position: &Position| -> Vec<Position> {
+        std::iter::successors(backward_empty_cell(position, &map), |pos| {
             backward_empty_cell(pos, &map)
         }).collect()
     };
 
     let mut trace: LinkedHashSet<Position> = LinkedHashSet::new();
     trace.insert(cur_position);
-    back_on_track.extend(build_back_on_track(cur_position));
+    back_on_track.extend(build_back_on_track(&cur_position));
 
-    let mut obstacles_coordinates: LinkedHashSet<Coordinate> = LinkedHashSet::new();
+    let mut obstacles_coordinates: Vec<Coordinate> = Vec::new();
 
     loop {
         let (action, next_position_opt) = move_guard(&cur_position, &map);
@@ -250,7 +250,7 @@ fn part2<R: BufRead>(reader: R) -> Result<i64> {
         }
 
         if action == TurnRight {
-            back_on_track.extend(build_back_on_track(next_position));
+            back_on_track.extend(build_back_on_track(&next_position));
         } else {
             let turn_right_position = Position {
                 direction: next_position.direction.turn_right(),
@@ -261,7 +261,7 @@ fn part2<R: BufRead>(reader: R) -> Result<i64> {
                 if let Some(obstacle_coordinate) = next_coordinate_opt {
                     if map.map[obstacle_coordinate.y][obstacle_coordinate.x] == Empty {
                         if !(obstacle_coordinate.x == start.x && obstacle_coordinate.y == start.y) {
-                            obstacles_coordinates.insert(obstacle_coordinate);
+                            obstacles_coordinates.push(obstacle_coordinate);
                         }
                     }
                 }
@@ -274,6 +274,10 @@ fn part2<R: BufRead>(reader: R) -> Result<i64> {
 
         cur_position = next_position;
     }
+
+    println!(
+        "{}",
+        visited_map(&map, &trace));
 
     Ok(obstacles_coordinates.iter().count() as i64)
 }
@@ -359,6 +363,19 @@ mod part2_tests {
                 ........#.
                 #.........
                 ......#...
+            "},
+        );
+    }
+
+    #[test]
+    fn test2() {
+        test_part2(
+            2,
+            indoc! {"
+                .#...
+                ....#
+                #^...
+                ..#..
             "},
         );
     }
