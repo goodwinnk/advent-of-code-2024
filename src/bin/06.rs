@@ -1,15 +1,20 @@
 use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 use advent_of_code2024_rust::{day, run_on_day_input};
 use anyhow::*;
 use std::io::{BufRead};
+use std::result;
 use itertools::Itertools;
 use linked_hash_set::LinkedHashSet;
 use crate::Action::{Move, TurnRight};
 use crate::Cell::{Empty, Wall};
 
-#[derive(Hash, Eq, PartialEq, Copy, Clone)]
+#[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
 enum Direction {
-    UP, RIGHT, DOWN, LEFT
+    UP,
+    RIGHT,
+    DOWN,
+    LEFT,
 }
 
 impl Direction {
@@ -33,23 +38,27 @@ impl Direction {
 }
 
 #[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
-struct Coordinate { x: usize, y: usize }
+struct Coordinate {
+    x: usize,
+    y: usize,
+}
 
-#[derive(Hash, Eq, PartialEq, Copy, Clone)]
+#[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
 struct Position {
     direction: Direction,
-    coordinate: Coordinate
+    coordinate: Coordinate,
 }
 
 #[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
 enum Cell {
-    Wall, Empty
+    Wall,
+    Empty,
 }
 
 struct Map {
     map: Vec<Vec<Cell>>,
-    x_size : usize,
-    y_size : usize
+    x_size: usize,
+    y_size: usize,
 }
 
 impl Map {
@@ -62,7 +71,8 @@ impl Map {
 
 #[derive(Hash, Eq, PartialEq)]
 enum Action {
-    Move, TurnRight
+    Move,
+    TurnRight,
 }
 
 fn apply_shift(coordinate: &Coordinate, map: &Map, shift: (i32, i32)) -> Option<Coordinate> {
@@ -72,7 +82,7 @@ fn apply_shift(coordinate: &Coordinate, map: &Map, shift: (i32, i32)) -> Option<
     if 0 <= x && x < map.x_size as i32 && 0 <= y && y < map.y_size as i32 {
         Some(Coordinate {
             x: x as usize,
-            y: y as usize
+            y: y as usize,
         })
     } else {
         None
@@ -120,13 +130,13 @@ fn move_guard(position: &Position, map: &Map) -> (Action, Option<Position>) {
             if map.map[next_coordinate.y][next_coordinate.x] == Wall {
                 return (TurnRight, Some(Position {
                     direction: position.direction.turn_right(),
-                    coordinate: position.coordinate
+                    coordinate: position.coordinate,
                 }));
             }
 
             (Move, Some(Position {
                 direction: position.direction.clone(),
-                coordinate: next_coordinate
+                coordinate: next_coordinate,
             }))
         }
     }
@@ -143,10 +153,10 @@ fn backward_empty_cell(position: &Position, map: &Map) -> Option<Position> {
     if map.get_cell(backward_coordinate) != Empty {
         return None;
     }
-    
+
     Some(Position {
         direction: position.direction,
-        coordinate: backward_coordinate
+        coordinate: backward_coordinate,
     })
 }
 
@@ -212,7 +222,7 @@ fn read_input<R: BufRead>(reader: R) -> Result<(Coordinate, Map)> {
         Map {
             map,
             x_size,
-            y_size
+            y_size,
         }
     };
     Ok((start.unwrap(), map))
@@ -224,7 +234,7 @@ fn part1<R: BufRead>(reader: R) -> Result<i64> {
 
     let mut cur_position = Some(Position {
         direction: Direction::UP,
-        coordinate: start
+        coordinate: start,
     });
 
     let mut trace: HashSet<Position> = HashSet::new();
@@ -234,7 +244,7 @@ fn part1<R: BufRead>(reader: R) -> Result<i64> {
         let (_, next_position) = move_guard(cur_position.as_ref().unwrap(), &map);
         if next_position.is_some() {
             if !trace.insert(next_position.unwrap()) {
-                break
+                break;
             }
         }
         cur_position = next_position;
@@ -248,63 +258,78 @@ fn part1<R: BufRead>(reader: R) -> Result<i64> {
         .len() as i64)
 }
 
+fn build_back_on_track(
+    position: &Position,
+    map: &Map,
+    back_on_track: &HashSet<Position>,
+) -> LinkedHashSet<Position> {
+    let mut result = LinkedHashSet::new();
+    let mut queue = Vec::new();
+    queue.push(position.clone());
+    while !queue.is_empty() {
+        let next = queue.pop().unwrap();
+        if !result.insert(next) || back_on_track.contains(&next) {
+            continue
+        }
+
+        if let Some(left_hand) = left_hand_coordinate(&next, &map) {
+            if map.get_cell(left_hand) == Wall {
+                queue.push(Position {
+                    direction: next.direction.turn_left(),
+                    coordinate: next.coordinate.clone(),
+                });
+            }
+        }
+        if let Some(backward) = backward_empty_cell(&next, &map) {
+            queue.push(backward);
+        }
+    }
+
+    result
+}
+
 //noinspection DuplicatedCode
 fn part2<R: BufRead>(reader: R) -> Result<i64> {
     let (start, map) = read_input(reader)?;
 
     let mut cur_position = Position {
         direction: Direction::UP,
-        coordinate: start
+        coordinate: start,
     };
 
     let mut back_on_track: HashSet<Position> = HashSet::new();
-    let build_back_on_track = |position: &Position| -> Vec<Position> {
-        std::iter::successors(backward_empty_cell(position, &map), |pos| {
-            backward_empty_cell(pos, &map)
-        }).collect()
-    };
-
     let mut trace: LinkedHashSet<Position> = LinkedHashSet::new();
-    trace.insert(cur_position);
-    back_on_track.extend(build_back_on_track(&cur_position));
 
-    let mut obstacles_coordinates: Vec<Coordinate> = Vec::new();
+    let mut obstacles_coordinates: HashSet<Coordinate> = HashSet::new();
 
     loop {
-        let (action, next_position_opt) = move_guard(&cur_position, &map);
-        if next_position_opt.is_none() {
-            break
-        }
-
-        let next_position = next_position_opt.unwrap();
-        if !trace.insert(next_position) {
+        if !trace.insert(cur_position) {
             panic!("Loop in the original track. It's not expected.")
         }
 
-        if action == TurnRight {
-            back_on_track.extend(build_back_on_track(&next_position));
-        } else {
-            let turn_right_position = Position {
-                direction: next_position.direction.turn_right(),
-                coordinate: next_position.coordinate,
-            };
-            if trace.contains(&turn_right_position) || back_on_track.contains(&turn_right_position) {
-                let next_coordinate_opt = step_forward_coordinate(&next_position, &map);
-                if let Some(obstacle_coordinate) = next_coordinate_opt {
-                    if map.get_cell(obstacle_coordinate) == Empty {
-                        if obstacle_coordinate != start {
-                            obstacles_coordinates.push(obstacle_coordinate);
-                        }
+        back_on_track.extend(build_back_on_track(&cur_position, &map, &back_on_track));
+
+        let turn_right_position = Position {
+            direction: cur_position.direction.turn_right(),
+            coordinate: cur_position.coordinate,
+        };
+
+        if back_on_track.contains(&turn_right_position) {
+            if let Some(obstacle_coordinate) = step_forward_coordinate(&cur_position, &map) {
+                if map.get_cell(obstacle_coordinate) == Empty {
+                    if obstacle_coordinate != start {
+                        obstacles_coordinates.insert(obstacle_coordinate);
                     }
                 }
             }
-
-            if let Some(backward_position) = backward_empty_cell(next_position_opt.as_ref().unwrap(), &map) {
-                back_on_track.insert(backward_position);
-            }
         }
 
-        cur_position = next_position;
+        let (_, next_position_opt) = move_guard(&cur_position, &map);
+        if next_position_opt.is_none() {
+            break;
+        }
+
+        cur_position = next_position_opt.unwrap();
     }
 
     println!(
@@ -408,6 +433,45 @@ mod part2_tests {
                 ....#
                 #^...
                 ..#..
+            "},
+        );
+    }
+
+    #[test]
+    fn test3() {
+        test_part2(
+            2,
+            indoc! {"
+                .#...
+                ....#
+                #....
+                .^#..
+            "},
+        );
+    }
+
+    #[test]
+    fn test4() {
+        test_part2(
+            1,
+            indoc! {"
+                ....
+                ...#
+                #...
+                .^#.
+            "},
+        );
+    }
+
+    #[test]
+    fn test5() {
+        test_part2(
+            1,
+            indoc! {"
+                ....
+                .^.#
+                #...
+                ..#.
             "},
         );
     }
