@@ -3,7 +3,6 @@ use anyhow::*;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::io::BufRead;
-use itertools::Itertools;
 
 
 #[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
@@ -84,10 +83,11 @@ fn find_antinodes(freq_antennas: &[Point], size: Size) -> HashSet<Point> {
 
     antinodes
         .iter()
-        .filter_map(|&(point)| point.to_safe(&size))
+        .filter_map(|point| point.to_safe(&size))
         .collect()
 }
 
+#[allow(dead_code)]
 fn debug_print_antinodes(antinodes: &HashSet<Point>, size: &Size) {
     for y in 0..size.y_size {
         for x in 0..size.x_size {
@@ -106,19 +106,11 @@ fn debug_print_antinodes(antinodes: &HashSet<Point>, size: &Size) {
 fn part1<R: BufRead>(reader: R) -> Result<i64> {
     let (antennas, size) = parse_input(reader);
 
-    println!("Antennas:\n{}\n",
-             antennas.iter().map(|entry| format!("{}: {:?}", entry.0, entry.1)).join("\n"));
-
-    let mut total_antinodes = HashSet::new();
-    for (ch, freq_antennas) in antennas {
+    let mut total_antinodes: HashSet<Point> = HashSet::new();
+    for (_, freq_antennas) in antennas {
         let freq_antinodes = find_antinodes(&freq_antennas, size);
         total_antinodes.extend(&freq_antinodes);
-
-        println!("Frequency: {}", ch);
-        debug_print_antinodes(&freq_antinodes, &size);
     }
-
-    debug_print_antinodes(&total_antinodes, &size);
 
     Ok(total_antinodes.len() as i64)
 }
