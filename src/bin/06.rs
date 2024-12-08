@@ -228,21 +228,15 @@ fn part2<R: BufRead>(reader: R) -> Result<i64> {
     };
 
     let (_, trace) = build_trace(&starting_position, &map, None);
-    let additional_walls = trace.iter()
-        .map(|position| {
-            step_forward_coordinate(&position, &map).and_then(|obstacle_coordinate| {
-                if map.get_cell(obstacle_coordinate) == Empty && obstacle_coordinate != start {
-                    build_trace(position, &map, Some(obstacle_coordinate)).0.then_some(obstacle_coordinate)
-                } else {
-                    None
-                }
-            })
-        })
-        .filter(|opt| opt.is_some())
-        .map(|opt| opt.unwrap())
-        .collect::<HashSet<Coordinate>>();
 
-    Ok(additional_walls.iter().count() as i64)
+    Ok(trace.iter()
+        .map(|position: &Position| position.coordinate)
+        .collect::<LinkedHashSet<Coordinate>>().iter()
+        .filter(|&&coordinate| coordinate != start)
+        .filter(|&&coordinate| {
+            build_trace(&starting_position, &map, Some(coordinate)).0
+        })
+        .count() as i64)
 }
 
 //#region
@@ -399,7 +393,7 @@ mod tests {
 
         #[test]
         fn part2_final() {
-            assert_eq!(1819i64, run_on_day_input(day!(), part2).unwrap());
+            assert_eq!(1753i64, run_on_day_input(day!(), part2).unwrap());
         }
     }
 }
