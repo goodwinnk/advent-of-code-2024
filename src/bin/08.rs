@@ -3,7 +3,7 @@ use anyhow::*;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::io::BufRead;
-
+use std::iter;
 
 #[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
 struct UnsafePoint {
@@ -25,6 +25,28 @@ impl UnsafePoint {
 struct Point {
     x: usize,
     y: usize,
+}
+
+impl std::ops::Add for UnsafePoint {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        UnsafePoint {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+}
+
+impl std::ops::Sub for UnsafePoint {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self {
+        UnsafePoint {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
+    }
 }
 
 impl Point {
@@ -87,6 +109,28 @@ fn find_antinodes(freq_antennas: &[Point], size: Size) -> HashSet<Point> {
         .collect()
 }
 
+fn find_antinodes_with_resonant_harmonics(freq_antennas: &[Point], size: &Size) -> HashSet<Point> {
+    let mut antinodes: HashSet<Point> = HashSet::new();
+
+    for i in 0..freq_antennas.len() {
+        for j in (i + 1)..freq_antennas.len() {
+            let antenna1 = freq_antennas[i];
+            let antenna2 = freq_antennas[j];
+
+            let diff = antenna1.to_unsafe() - antenna2.to_unsafe();
+
+            antinodes.extend(
+                iter::successors(Some(antenna1), |point| { (point.to_unsafe() + diff).to_safe(size)})
+            );
+            antinodes.extend(
+                iter::successors(Some(antenna2), |point| { (point.to_unsafe() - diff).to_safe(size)})
+            );
+        }
+    }
+
+    antinodes
+}
+
 #[allow(dead_code)]
 fn debug_print_antinodes(antinodes: &HashSet<Point>, size: &Size) {
     for y in 0..size.y_size {
@@ -116,8 +160,16 @@ fn part1<R: BufRead>(reader: R) -> Result<i64> {
 }
 
 //noinspection DuplicatedCode
-fn part2<R: BufRead>(_reader: R) -> Result<i64> {
-    Ok(0)
+fn part2<R: BufRead>(reader: R) -> Result<i64> {
+    let (antennas, size) = parse_input(reader);
+
+    let mut total_antinodes: HashSet<Point> = HashSet::new();
+    for (_, freq_antennas) in antennas {
+        let freq_antinodes = find_antinodes_with_resonant_harmonics(&freq_antennas, &size);
+        total_antinodes.extend(&freq_antinodes);
+    }
+
+    Ok(total_antinodes.len() as i64)
 }
 
 //#region
@@ -207,6 +259,44 @@ mod tests {
                     .........A..
                     ............
                     ............
+                "},
+            );
+        }
+
+        #[test]
+        fn test2() {
+            test_part2(
+                9,
+                indoc! {"
+                    T.........
+                    ...T......
+                    .T........
+                    ..........
+                    ..........
+                    ..........
+                    ..........
+                    ..........
+                    ..........
+                    ..........
+                "},
+            );
+        }
+
+        #[test]
+        fn test3() {
+            test_part2(
+                9,
+                indoc! {"
+                    T.........
+                    ...T......
+                    .T........
+                    ..........
+                    ..........
+                    .......A..
+                    ..B.......
+                    ..........
+                    .....a....
+                    ..........
                 "},
             );
         }
