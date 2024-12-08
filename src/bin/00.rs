@@ -31,55 +31,58 @@ fn main() {
 
 //#endregion
 
-//noinspection SpellCheckingInspection
 #[cfg(test)]
-mod part1_tests {
+mod tests {
     use std::io::BufReader;
     use indoc::indoc;
     use super::*;
 
-    fn test_part1(expect: i64, input: &str) {
-        assert_eq!(expect, part1(BufReader::new(input.as_bytes())).unwrap());
-    }
+    //noinspection SpellCheckingInspection
+    #[cfg(test)]
+    mod part1_tests {
+        use super::*;
 
-    #[test]
-    fn test1() {
-        test_part1(
-            0,
-            indoc! {"
+        fn test_part1(expect: i64, input: &str) {
+            assert_eq!(expect, part1(BufReader::new(input.as_bytes())).unwrap());
+        }
+
+        #[test]
+        fn test1() {
+            test_part1(
+                0,
+                indoc! {"
             "},
-        );
+            );
+        }
+
+        #[test]
+        fn part1_final() {
+            part1_result().unwrap();
+        }
     }
 
-    #[test]
-    fn part1_final() {
-        part1_result().unwrap();
-    }
-}
+    //noinspection SpellCheckingInspection
+    #[cfg(test)]
+    mod part2_tests {
+        use super::*;
 
-//noinspection SpellCheckingInspection
-#[cfg(test)]
-mod part2_tests {
-    use std::io::BufReader;
-    use indoc::indoc;
-    use super::*;
+        fn test_part2(expect: i64, input: &str) {
+            assert_eq!(expect, part2(BufReader::new(input.as_bytes())).unwrap());
+        }
 
-    fn test_part2(expect: i64, input: &str) {
-        assert_eq!(expect, part2(BufReader::new(input.as_bytes())).unwrap());
-    }
-
-    #[test]
-    fn test1() {
-        test_part2(
-            0,
-            indoc! {"
+        #[test]
+        fn test1() {
+            test_part2(
+                0,
+                indoc! {"
                 1   2
             "}
-        );
-    }
+            );
+        }
 
-    #[test]
-    fn part2_final() {
-        part2_result().unwrap();
+        #[test]
+        fn part2_final() {
+            part2_result().unwrap();
+        }
     }
 }
