@@ -2,7 +2,6 @@ use std::cmp::min;
 use advent_of_code2024_rust::{day, run_on_day_input};
 use anyhow::*;
 use std::io::{BufRead};
-use priority_queue::PriorityQueue;
 
 fn parse_input<R: BufRead>(reader: R) -> Vec<usize> {
     let str: String = reader.lines().next().unwrap().unwrap();
@@ -13,16 +12,19 @@ fn parse_input<R: BufRead>(reader: R) -> Vec<usize> {
 }
 
 fn check_sum(blocks: &Vec<Block>) -> i64 {
-    blocks.iter().fold((0i64, 0i64), |(index, sum), block: &Block| {
-        let block_size = block.size;
+    let mut hash: i64 = 0;
+    let mut index: i64 = 0;
+    for block in blocks {
         if block.is_file {
-            let block_id = block.id;
-            let sum_dx: i64 = (index + (block_size - 1) + index) * block_size / 2 * block_id;
-            (index + block_size, sum + sum_dx)
+            for _j in 0..block.size {
+                hash = hash.checked_add(index * block.id).unwrap();
+                index += 1;
+            }
         } else {
-            (index + block_size, sum)
+            index += block.size;
         }
-    }).1
+    }
+    hash
 }
 
 //noinspection DuplicatedCode
@@ -87,118 +89,50 @@ struct Block {
     is_file: bool,
 }
 
-//noinspection DuplicatedCode
 fn part2<R: BufRead>(reader: R) -> Result<i64> {
     let blocks: Vec<Block> = parse_input(reader).iter().enumerate()
         .map(|(i, &b)| {
             Block { id: (i / 2) as i64, size: b as i64, is_file: (i % 2) == 0 }
         })
         .collect();
+
     if blocks.is_empty() {
         return Ok(0);
     }
 
-    let blocks_with_indexes: Vec<(Block, i64)> = blocks.iter()
-        .scan(0i64, |index, &block| {
-            let current_index = *index;
-            *index += block.size;
-            Some((block, current_index))
-        })
-        .collect();
+    let mut movable_blocks: Vec<Vec<Block>> = blocks.iter().map(|block| vec![block.clone()]).collect();
+    for index in (4..movable_blocks.len()).rev() {
+        let file_block = movable_blocks[index].first().unwrap().clone();
+        if !file_block.is_file {
+            continue
+        }
 
-    let mut queues: [PriorityQueue<usize, i64>; 10] = Default::default();
-    let mut free_spaces: Vec<Vec<Block>> = blocks.iter()
-        .filter(|block| !block.is_file)
-        .inspect(|block| {
-            let queue = &mut queues[block.size as usize];
-            queue.push(block.id as usize, -block.id);
-        })
-        .map(|&block| vec![block])
-        .collect();
+        for free_space_index in 1..index {
+            let free_space_block = movable_blocks[free_space_index].first().unwrap().clone();
+            if free_space_block.is_file || free_space_block.size < file_block.size {
+                continue
+            }
 
-    if (blocks.len() % 2) == 0 {
-        let last_free_spase = blocks.last().unwrap();
-        assert!(!last_free_spase.is_file, "free space expected");
-        (&mut queues[last_free_spase.size as usize]).remove(&(last_free_spase.id as usize));
-    }
+            assert_eq!(movable_blocks[free_space_index].len(), 1);
 
-    let files: Vec<Block> = blocks.iter()
-        .filter(|block| block.is_file)
-        .map(|&block| block)
-        .collect();
+            (&mut movable_blocks[free_space_index])[0] = Block {
+                id: -free_space_block.id,
+                size: free_space_block.size - file_block.size,
+                is_file: false
+            };
 
-    let mut resulting_file_blocks_inv: Vec<Block> = Default::default();
+            movable_blocks[free_space_index - 1].push(file_block.clone());
+            (&mut movable_blocks[index])[0] = Block {
+                id: -file_block.id,
+                size: file_block.size,
+                is_file: false
+            };
 
-    for (file_block_index, file_block) in files.iter().enumerate().rev() {
-        let size = file_block.size as usize;
-
-        if file_block_index == 0 {
-            resulting_file_blocks_inv.push(file_block.clone());
             break;
         }
-
-        {
-            // 0.0 - 1.f - 2.1 - 3.f - 4.2
-            // Remove the block before the file from the queue
-            let last_free_spase_block = blocks[file_block_index * 2 - 1];
-            assert!(!last_free_spase_block.is_file, "free space expected");
-            (&mut queues[last_free_spase_block.size as usize]).remove(&(last_free_spase_block.id as usize));
-        }
-
-        // id of the queue (size of free space) - id of the free space
-        let min_queue_index: Option<(usize, usize)> = (size .. 9)
-            .map(|i| (i, queues[i].peek().and_then(|(&free_space_id, _)| Some(free_space_id))))
-            .filter(|(_, queue_top)| queue_top.is_some())
-            .map(|(i, queue_top)| (i, queue_top.unwrap()))
-            .min_by_key(|(_, free_space_id)| *free_space_id);
-
-        if let Some((queue_id, free_space_id)) = min_queue_index {
-            let free_space_vec = &mut free_spaces[free_space_id];
-            let free_space_block = free_space_vec.remove(free_space_vec.len() - 1);
-            assert!(!free_space_block.is_file);
-            assert!(free_space_block.size as usize >= size);
-
-            (&mut queues[queue_id]).pop().inspect(|(space_id, priority)| {
-                assert_eq!(*space_id, free_space_id);
-                assert_eq!(*priority, -free_space_block.id);
-            });
-
-            // Move file
-            free_space_vec.push(file_block.clone());
-            resulting_file_blocks_inv.push( Block {
-                    id: -file_block.id,
-                    size: file_block.size,
-                    is_file: false
-                }
-            );
-
-            // Update the rest of free space
-            let updated_free_space_block = Block {
-                id: free_space_block.id,
-                size: free_space_block.size - file_block.size,
-                is_file: free_space_block.is_file
-            };
-            if updated_free_space_block.size != 0 {
-                free_space_vec.push(updated_free_space_block);
-                let queue = &mut queues[updated_free_space_block.size as usize];
-                queue.push(updated_free_space_block.id as usize, -updated_free_space_block.id);
-            }
-        } else {
-            resulting_file_blocks_inv.push(file_block.clone());
-        }
     }
 
-    let resulting_file_blocks = resulting_file_blocks_inv.iter().rev().copied().collect::<Vec<Block>>();
-    assert_eq!(resulting_file_blocks.len(), files.len());
-
-    let final_blocks = (0..resulting_file_blocks.len()).map(|i| {
-        let mut blocks = vec![resulting_file_blocks[i]];
-        if let Some(free_spaces_blocks) = free_spaces.get(i) {
-            blocks.extend(free_spaces_blocks.iter().copied());
-        }
-
-        blocks
-    }).flatten().collect::<Vec<Block>>();
+    let final_blocks: Vec<Block> = movable_blocks.iter().flatten().copied().collect();
 
     Ok(check_sum(final_blocks.as_ref()))
 }
@@ -334,8 +268,25 @@ mod tests {
         }
 
         #[test]
+        fn test2() {
+            test_part2(
+                2,
+                indoc! {"
+                    111
+                "},
+            );
+        }
+
+        #[test]
+        fn test3() {
+            test_part2(16, "11122"); // 1.122
+        }
+
+        #[test]
         fn part2_final() {
-            part2_result().unwrap();
+            // Too high?
+            let result = run_on_day_input(day!(), part2).unwrap();
+            assert_eq!(6265268809555, result);
         }
     }
 }
