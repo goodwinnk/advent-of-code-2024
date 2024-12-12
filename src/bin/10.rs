@@ -78,9 +78,75 @@ fn compute_trailhead_score(map: &Vec<Vec<u32>>, start: (usize, usize)) -> u32 {
         .count() as u32
 }
 
+fn compute_trailhead_rating_all_paths(map: &Vec<Vec<u32>>, start: (usize, usize)) -> u32 {
+    let rows = map.len();
+    let cols = map[0].len();
+    let mut trails_to_peaks = HashSet::new();
+
+    // Queue stores: (row, col, current_height, current_trail)
+    let mut queue = VecDeque::new();
+    queue.push_back((start.0, start.1, 0, vec![(start.0, start.1)]));
+
+    while let Some((r, c, current_height, current_trail)) = queue.pop_front() {
+        // Out of bounds
+        if r >= rows || c >= cols {
+            continue;
+        }
+
+        // Invalid height progression
+        if map[r][c] != current_height {
+            continue;
+        }
+
+        // Reached peak
+        if current_height == 9 {
+            trails_to_peaks.insert(current_trail.clone());
+            continue;
+        }
+
+        // Attempt moves in 4 directions
+        let next_height = current_height + 1;
+        let moves = [
+            (r.wrapping_sub(1), c),    // Up
+            (r + 1, c),                // Down
+            (r, c.wrapping_sub(1)),    // Left
+            (r, c + 1)                 // Right
+        ];
+
+        for (next_r, next_c) in moves {
+            if next_r < rows && next_c < cols && map[next_r][next_c] == next_height {
+                let mut new_trail = current_trail.clone();
+                new_trail.push((next_r, next_c));
+                queue.push_back((next_r, next_c, next_height, new_trail));
+            }
+        }
+    }
+
+    // Return number of distinct trails to peaks
+    trails_to_peaks.len() as u32
+}
+
+fn solve_topographic_map_2(map: &Vec<Vec<u32>>) -> u32 {
+    let rows = map.len();
+    let cols = map[0].len();
+
+    // Find all trailheads (positions with height 0)
+    let trailheads: Vec<(usize, usize)> = (0..rows)
+        .flat_map(|r| (0..cols).filter(move |&c| map[r][c] == 0).map(move |c| (r, c)))
+        .collect();
+
+    // Compute trailhead ratings
+    trailheads.iter()
+        .map(|&trailhead| compute_trailhead_rating_all_paths(map, trailhead))
+        .sum()
+}
+
 //noinspection DuplicatedCode
-fn part2<R: BufRead>(_reader: R) -> Result<i64> {
-    Ok(0)
+fn part2<R: BufRead>(reader: R) -> Result<i64> {
+    let map = parse_map(reader);
+    let result = solve_topographic_map_2(&map);
+
+    Ok(result as i64)
 }
 
 //#region
@@ -197,10 +263,64 @@ mod tests {
         #[test]
         fn test1() {
             test_part2(
-                0,
+                3,
                 indoc! {"
-                1   2
-            "}
+                .....0.
+                ..4321.
+                ..5..2.
+                ..6543.
+                ..7..4.
+                ..8765.
+                ..9....
+                "}
+            );
+        }
+
+        #[test]
+        fn test2() {
+            test_part2(
+                13,
+                indoc! {"
+                ..90..9
+                ...1.98
+                ...2..7
+                6543456
+                765.987
+                876....
+                987....
+                "}
+            );
+        }
+
+        #[test]
+        fn test3() {
+            test_part2(
+                227,
+                indoc! {"
+                012345
+                123456
+                234567
+                345678
+                4.6789
+                56789.
+                "}
+            );
+        }
+
+        #[test]
+        fn test4() {
+            test_part2(
+                81,
+                indoc! {"
+                89010123
+                78121874
+                87430965
+                96549874
+                45678903
+                32019012
+                01329801
+                10456732
+                "}
             );
         }
 
