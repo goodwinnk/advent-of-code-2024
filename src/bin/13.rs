@@ -54,6 +54,23 @@ fn min_cost_to_win(machine: &ClawMachine) -> Option<i64> {
     let a_top = machine.prize_y * machine.b_x - machine.prize_x * machine.b_y;
     let a_bottom = machine.a_y * machine.b_x - machine.a_x * machine.b_y;
 
+    if a_bottom == 0 {
+        let a: Option<i64> = if machine.prize_y % machine.a_y == 0 && machine.prize_x % machine.a_x == 0 &&
+            machine.prize_y / machine.a_y == machine.prize_x / machine.a_x {
+            Some(machine.prize_y / machine.a_y)
+        } else {
+            None
+        };
+        let b: Option<i64> = if machine.prize_y % machine.b_y == 0 && machine.prize_x % machine.b_x == 0 &&
+            machine.prize_y / machine.b_y == machine.prize_x / machine.b_x {
+            Some(machine.prize_y / machine.b_y)
+        } else {
+            None
+        };
+
+        return [a.and_then(|x| Some(x * 3)), b].iter().filter_map(|&x| x).min();
+    }
+
     if a_top % a_bottom != 0 {
         return None;
     }
@@ -132,6 +149,60 @@ mod tests {
     use std::io::BufReader;
     use indoc::indoc;
     use super::*;
+
+    #[cfg(test)]
+    mod min_cost_to_win_tests {
+        use super::*;
+
+        fn test_min_cost_to_win(expect: Option<i64>, machine: &ClawMachine) {
+            assert_eq!(expect, min_cost_to_win(machine));
+        }
+
+        #[test]
+        fn test1() {
+            test_min_cost_to_win(Some(2), &ClawMachine {
+                a_x: 1, a_y: 1,
+                b_x: 2, b_y: 2,
+                prize_x: 4, prize_y: 4,
+            });
+        }
+
+        #[test]
+        fn test2() {
+            test_min_cost_to_win(Some(6), &ClawMachine {
+                a_x: 4, a_y: 4,
+                b_x: 1, b_y: 1,
+                prize_x: 8, prize_y: 8,
+            });
+        }
+
+        #[test]
+        fn test3() {
+            test_min_cost_to_win(None, &ClawMachine {
+                a_x: 2, a_y: 3,
+                b_x: 4, b_y: 6,
+                prize_x: 9, prize_y: 9,
+            });
+        }
+
+        #[test]
+        fn test4() {
+            test_min_cost_to_win(Some(2), &ClawMachine {
+                a_x: 12, a_y: 12,
+                b_x: 4, b_y: 4,
+                prize_x: 8, prize_y: 8,
+            });
+        }
+
+        #[test]
+        fn test5() {
+            test_min_cost_to_win(Some(1), &ClawMachine {
+                a_x: 8, a_y: 8,
+                b_x: 8, b_y: 8,
+                prize_x: 8, prize_y: 8,
+            });
+        }
+    }
 
     //noinspection SpellCheckingInspection
     #[cfg(test)]
