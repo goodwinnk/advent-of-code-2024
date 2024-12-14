@@ -1,225 +1,299 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
+use advent_of_code2024_rust::{day, run_on_day_input};
+use anyhow::*;
+use std::io::{BufRead};
+use itertools::Itertools;
 
-fn find_regions(map: &Vec<Vec<char>>) -> HashMap<char, Vec<Vec<(usize, usize)>>> {
+#[derive(Debug, Clone)]
+struct Region {
+    plots: Vec<(usize, usize)>,
+}
+
+impl Region {
+    fn area(&self) -> usize {
+        self.plots.len()
+    }
+
+    fn count_sides(&self, map: &Vec<Vec<char>>) -> usize {
+        let plant_type = map[self.plots[0].0][self.plots[0].1];
+        let rows = map.len() as i32;
+        let cols = map[0].len() as i32;
+
+        #[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
+        enum WallDirection {
+            UP,
+            RIGHT,
+            DOWN,
+            LEFT,
+        }
+
+        let mut sides: HashMap<(WallDirection, usize), Vec<usize>> = HashMap::new();
+
+        let is_other = |row: usize, col: usize, dr: i32, dc: i32| -> bool {
+            let nr = row as i32 + dr;
+            let nc = col as i32 + dc;
+            nr < 0 || nc < 0 || nr >= rows || nc >= cols || map[nr as usize][nc as usize] != plant_type
+        };
+
+        for &(r, c) in &self.plots {
+            if is_other(r, c, -1, 0) {
+                sides.entry((WallDirection::UP, r)).or_default().push(c);
+            }
+
+            if is_other(r, c, 1, 0) {
+                sides.entry((WallDirection::DOWN, r + 1)).or_default().push(c);
+            }
+
+            if is_other(r, c, 0, -1) {
+                sides.entry((WallDirection::LEFT, c)).or_default().push(r);
+            }
+
+            if is_other(r, c, 0, 1) {
+                sides.entry((WallDirection::RIGHT, c + 1)).or_default().push(r);
+            }
+        }
+
+        let sides_count = sides.values().map(|v| {
+            assert_ne!(v.len(), 0);
+            let sorted_sides: Vec<usize> = v.iter().sorted().copied().collect();
+            let mut count = 1;
+            for i in 1..sorted_sides.len() {
+                if sorted_sides[i] != sorted_sides[i - 1] + 1 {
+                    count += 1;
+                }
+            }
+            count
+        }).sum();
+
+        // println!(
+        //     "Region: {}, Sides count: {}.\n  Plots: {:?}\n  Sides: {:?}",
+        //     plant_type, sides_count, self.plots, sides);
+
+        sides_count
+    }
+}
+
+
+fn find_regions(map: &Vec<Vec<char>>) -> Vec<(char, Region)> {
     let rows = map.len();
     let cols = map[0].len();
     let mut visited = vec![vec![false; cols]; rows];
-    let mut regions: HashMap<char, Vec<Vec<(usize, usize)>>> = HashMap::new();
+    let mut regions: Vec<(char, Region)> = Default::default();
 
     for r in 0..rows {
         for c in 0..cols {
-            if !visited[r][c] {
-                let plant_type = map[r][c];
-                if plant_type == ' ' {
-                    continue;
-                }
-
-                let (region, region_visited) = bfs(map, &mut visited, r, c, plant_type);
-
-                // Update the larger visited set
-                for (vr, vc) in region_visited.iter() {
-                    visited[*vr][*vc] = true;
-                }
-
-                regions.entry(plant_type).or_default().push(region);
+            if visited[r][c] {
+                continue;
             }
+
+            let plant_type = map[r][c];
+            let region = bfs_map(map, &mut visited, r, c, plant_type);
+
+            regions.push((plant_type, Region { plots: region }));
         }
     }
 
     regions
 }
 
-fn bfs(
+fn bfs_map(
     map: &Vec<Vec<char>>,
     visited: &mut Vec<Vec<bool>>,
-    start_r: usize,
-    start_c: usize,
+    start_row: usize,
+    start_column: usize,
     plant_type: char
-) -> (Vec<(usize, usize)>, Vec<(usize, usize)>) {
-    let mut region = Vec::new();
-    let mut region_visited = Vec::new();
-    let mut queue = VecDeque::new();
+) -> Vec<(usize, usize)> {
+    let mut region: Vec<(usize, usize)> = Vec::new();
+    let mut queue: VecDeque<(usize, usize)> = VecDeque::new();
 
-    queue.push_back((start_r, start_c));
+    let directions = [(0, 1), (1, 0), (0, -1), (-1, 0)];
+    let rows = map.len();
+    let cols = map[0].len();
 
-    while let Some((r, c)) = queue.pop_front() {
-        if r >= map.len() || c >= map[0].len() ||
-            visited[r][c] || map[r][c] != plant_type {
+    queue.push_back((start_row, start_column));
+    while let Some((row, column)) = queue.pop_front() {
+        if row >= rows || column >= cols ||
+            visited[row][column] || map[row][column] != plant_type {
             continue;
         }
 
-        visited[r][c] = true;
-        region.push((r, c));
-        region_visited.push((r, c));
+        visited[row][column] = true;
+        region.push((row, column));
 
-        let directions = [(0,1), (1,0), (0,-1), (-1,0)];
         for (dr, dc) in directions {
-            let nr = r as i32 + dr;
-            let nc = c as i32 + dc;
-
-            if nr >= 0 && nc >= 0 &&
-                nr < map.len() as i32 && nc < map[0].len() as i32 &&
-                map[nr as usize][nc as usize] == plant_type &&
-                !visited[nr as usize][nc as usize] {
+            let nr = row as i32 + dr;
+            let nc = column as i32 + dc;
+            if nr >= 0 && nc >= 0 {
                 queue.push_back((nr as usize, nc as usize));
             }
         }
     }
 
-    (region, region_visited)
+    region
 }
 
-fn calculate_region_price(region_plots: &Vec<(usize, usize)>, map: &Vec<Vec<char>>) -> usize {
-    let rows = map.len();
-    let cols = map[0].len();
-    let plant_type = map[region_plots[0].0][region_plots[0].1];
-
-    let area = region_plots.len();
-    let mut perimeter = 0;
-
-    // Check each plot in the region
-    for (r, c) in region_plots {
-        let directions = [(0,1), (1,0), (0,-1), (-1,0)];
-
-        for (dr, dc) in directions {
-            let nr = *r as i32 + dr;
-            let nc = *c as i32 + dc;
-
-            // Check if this side is on the map boundary or touches a different plant type
-            if nr < 0 || nc < 0 ||
-                nr >= rows as i32 || nc >= cols as i32 ||
-                map[nr as usize][nc as usize] != plant_type {
-                perimeter += 1;
-            }
-        }
-    }
-
-    area * perimeter
+//noinspection DuplicatedCode
+fn part1<R: BufRead>(_reader: R) -> Result<i64> {
+    Ok(0)
 }
 
-fn solve_garden_plot_problem(input: &str) -> usize {
-    let map: Vec<Vec<char>> = input
+//noinspection DuplicatedCode
+fn part2<R: BufRead>(reader: R) -> Result<i64> {
+    let map: Vec<Vec<char>> = reader
         .lines()
+        .flatten()
+        .filter(|line| !line.is_empty())
         .map(|line| line.chars().collect())
         .collect();
 
     let regions = find_regions(&map);
+    println!("{}", regions.len());
 
-    regions.iter()
-        .flat_map(|(_, plant_regions)|
-            plant_regions.iter().map(|region_plots|
-                calculate_region_price(region_plots, &map)
-            )
+    Ok(regions.iter()
+        .map(|(_, region)|
+            (region.area() * region.count_sides(&map)) as i64
         )
-        .sum()
+        .sum())
 }
+
+//#region
+
+fn part1_result() -> Result<()> {
+    run_on_day_input(day!(), part1)?;
+    Ok(())
+}
+
+fn part2_result() -> Result<()> {
+    run_on_day_input(day!(), part2)?;
+    Ok(())
+}
+
+fn main() {
+    part1_result().unwrap();
+    part2_result().unwrap();
+}
+
+//#endregion
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
+    use std::io::BufReader;
+    use indoc::indoc;
     use super::*;
 
-    #[test]
-    fn test_small_example() {
-        let input = "AAAA
-BBCD
-BBCC
-EEEC";
+    //noinspection SpellCheckingInspection
+    #[cfg(test)]
+    mod part1_tests {
+        use super::*;
 
-        let map: Vec<Vec<char>> = input
-            .lines()
-            .map(|line| line.chars().collect())
-            .collect();
+        fn test_part1(expect: i64, input: &str) {
+            assert_eq!(expect, part1(BufReader::new(input.as_bytes())).unwrap());
+        }
 
-        let regions = find_regions(&map);
+        #[test]
+        fn test1() {
+            test_part1(
+                0,
+                indoc! {"
+            "},
+            );
+        }
 
-        // Check number of distinct regions
-        assert_eq!(regions.len(), 5);
-
-        // Check regions of different plant types
-        assert!(regions.contains_key(&'A'));
-        assert!(regions.contains_key(&'B'));
-        assert!(regions.contains_key(&'C'));
-        assert!(regions.contains_key(&'D'));
-        assert!(regions.contains_key(&'E'));
-
-        // Verify region sizes
-        assert_eq!(regions[&'A'][0].len(), 4);
-        assert_eq!(regions[&'B'][0].len(), 4);
-        assert_eq!(regions[&'C'][0].len(), 4);
-        assert_eq!(regions[&'D'][0].len(), 1);
-        assert_eq!(regions[&'E'][0].len(), 3);
+        #[test]
+        fn part1_final() {
+            part1_result().unwrap();
+        }
     }
 
-    #[test]
-    fn test_nested_regions() {
-        let input = "OOOOO
-OXOXO
-OOOOO
-OXOXO
-OOOOO";
+    //noinspection SpellCheckingInspection
+    #[cfg(test)]
+    mod part2_tests {
+        use super::*;
 
-        let total_price = solve_garden_plot_problem(input);
-        assert_eq!(total_price, 772);
-    }
+        fn test_part2(expect: i64, input: &str) {
+            assert_eq!(expect, part2(BufReader::new(input.as_bytes())).unwrap());
+        }
 
-    #[test]
-    fn test_large_example() {
-        let input = "RRRRIICCFF
-RRRRIICCCF
-VVRRRCCFFF
-VVRCCCJFFF
-VVVVCJJCFE
-VVIVCCJJEE
-VVIIICJJEE
-MIIIIIJJEE
-MIIISIJEEE
-MMMISSJEEE";
+        #[test]
+        fn test1() {
+            test_part2(
+                80,
+                indoc! {"
+                    AAAA
+                    BBCD
+                    BBCC
+                    EEEC
+                "}
+            );
+        }
 
-        let total_price = solve_garden_plot_problem(input);
-        assert_eq!(total_price, 1930);
-    }
+        #[test]
+        fn test2() {
+            test_part2(
+                436,
+                indoc! {"
+                    OOOOO
+                    OXOXO
+                    OOOOO
+                    OXOXO
+                    OOOOO
+                "}
+            );
+        }
 
-    #[test]
-    fn test_region_price_calculation() {
-        let input = "AAAA
-BBCD
-BBCC
-EEEC";
+        #[test]
+        fn test3() {
+            test_part2(
+                236,
+                indoc! {"
+                    EEEEE
+                    EXXXX
+                    EEEEE
+                    EXXXX
+                    EEEEE
+                "}
+            );
+        }
 
-        let map: Vec<Vec<char>> = input
-            .lines()
-            .map(|line| line.chars().collect())
-            .collect();
+        #[test]
+        fn test4() {
+            test_part2(
+                368,
+                indoc! {"
+                    AAAAAA
+                    AAABBA
+                    AAABBA
+                    ABBAAA
+                    ABBAAA
+                    AAAAAA
+                "}
+            );
+        }
 
-        let regions = find_regions(&map);
+        #[test]
+        fn test5() {
+            test_part2(
+                1206,
+                indoc! {"
+                    RRRRIICCFF
+                    RRRRIICCCF
+                    VVRRRCCFFF
+                    VVRCCCJFFF
+                    VVVVCJJCFE
+                    VVIVCCJJEE
+                    VVIIICJJEE
+                    MIIIIIJJEE
+                    MIIISIJEEE
+                    MMMISSJEEE
+                "}
+            );
+        }
 
-        // Manually check prices for specific regions
-        let a_price = calculate_region_price(&regions[&'A'][0], &map);
-        let b_price = calculate_region_price(&regions[&'B'][0], &map);
-        let d_price = calculate_region_price(&regions[&'D'][0], &map);
-
-        assert_eq!(a_price, 40);  // 4 * 10
-        assert_eq!(b_price, 32);  // 4 * 8
-        assert_eq!(d_price, 4);   // 1 * 4
-    }
-
-    #[test]
-    fn test_single_region() {
-        let input = "XXXXX
-XXXXX
-XXXXX
-XXXXX
-XXXXX";
-
-        let total_price = solve_garden_plot_problem(input);
-        assert_eq!(total_price, 500);  // 25 * 20
-    }
-
-    #[test]
-    fn final_solve() {
-        let input: String = fs::read_to_string("input/12.txt").unwrap();
-        let total_price = solve_garden_plot_problem(input.as_str());
-        assert_eq!(total_price, 0);
+        #[test]
+        fn part2_final() {
+            fn part2_final() {
+                assert_eq!(911750, run_on_day_input(day!(), part2).unwrap());
+            }
+        }
     }
 }
