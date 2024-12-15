@@ -73,7 +73,67 @@ fn part1_ext<R: BufRead>(reader: R, width: i32, height: i32) -> Result<i64> {
 }
 
 //noinspection DuplicatedCode
-fn part2<R: BufRead>(_reader: R) -> Result<i64> {
+fn part2<R: BufRead>(reader: R) -> Result<i64> {
+    let mut robots = parse_input(reader);
+
+    let width = 101;
+    let height = 103;
+
+    let mut target_ordering = 2;
+
+    for i in 1..10000 {
+        let mut map = vec![vec![false; 101]; 103];
+
+        robots = robots
+            .into_iter()
+            .map(|robot: Robot| Robot {
+                pos: (
+                    (robot.pos.0 + robot.vel.0).rem_euclid(width),
+                    (robot.pos.1 + robot.vel.1).rem_euclid(height)
+                ),
+                vel: robot.vel
+            })
+            .inspect(|robot| {
+                map[robot.pos.1 as usize][robot.pos.0 as usize] = true;
+            })
+            .collect();
+
+        let ordering = map.iter()
+            .map(|row| {
+                let mut row_ordering = 0;
+                let mut current = 0;
+                for is_robot in row {
+                    if *is_robot {
+                        current += 1;
+                        if current > row_ordering {
+                            row_ordering = current;
+                        }
+                    } else {
+                        current = 0;
+                    }
+                }
+                row_ordering
+            })
+            .max().unwrap();
+
+        if ordering > target_ordering {
+            target_ordering = ordering;
+            println!("------------------------");
+            println!("{}", i);
+            for row in map {
+                for is_robot in row {
+                    if is_robot {
+                        print!("#");
+                    } else {
+                        print!(".");
+                    }
+                }
+                println!()
+            }
+            println!()
+        }
+    }
+
     Ok(0)
 }
 
@@ -143,20 +203,6 @@ mod tests {
     #[cfg(test)]
     mod part2_tests {
         use super::*;
-
-        fn test_part2(expect: i64, input: &str) {
-            assert_eq!(expect, part2(BufReader::new(input.as_bytes())).unwrap());
-        }
-
-        #[test]
-        fn test1() {
-            test_part2(
-                0,
-                indoc! {"
-                1   2
-            "}
-            );
-        }
 
         #[test]
         fn part2_final() {
