@@ -1,3 +1,5 @@
+pub mod matrix;
+
 use std::fs::File;
 use std::io::BufReader;
 use code_timing_macros::time_snippet;

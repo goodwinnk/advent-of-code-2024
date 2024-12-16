@@ -3,7 +3,8 @@ use anyhow::*;
 use std::io::{BufRead};
 use std::ops::Add;
 use array2d::Array2D;
-use Direction::{DOWN, LEFT, RIGHT, UP};
+use advent_of_code2024_rust::matrix::{Array2DErrorExt, Array2DExt, Coordinate, Direction};
+use Direction::{Down, Left, Right, Up};
 use Tile::{Empty, Robot, Wall, Box};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -14,79 +15,15 @@ enum Tile {
     Robot,
 }
 
-#[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
-enum Direction {
-    UP,
-    RIGHT,
-    DOWN,
-    LEFT,
-}
-
 #[derive(Debug, Clone)]
 struct Warehouse {
     map: Array2D<Tile>,
     robot_pos: (usize, usize),
 }
 
-#[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
-struct Coordinate {
-    row: isize,
-    column: isize,
-}
-
-impl Add<(isize, isize)> for Coordinate {
-    type Output = Coordinate;
-
-    fn add(self, other: (isize, isize)) -> Coordinate {
-        Coordinate {
-            row: self.row + other.0,
-            column: self.column + other.1,
-        }
-    }
-}
-
-#[derive(Debug)]
-#[allow(dead_code)]
-enum Array2DErrorExt {
-    InvalidCoordinate(Coordinate),
-    Base(array2d::Error)
-}
-
-trait Array2DExt<T> {
-    fn get_safe(&self, coordinate: &Coordinate) -> Option<&T>;
-    fn set_coord(&mut self, coordinate: &Coordinate, value: T) -> Result<(), Array2DErrorExt>;
-}
-
-// Implement the trait for Array2D
-impl<T> Array2DExt<T> for Array2D<T> {
-    #[inline(always)]
-    fn get_safe(&self, coordinate: &Coordinate) -> Option<&T> {
-        if coordinate.row >= 0 && coordinate.column >= 0 {
-            self.get(coordinate.row as usize, coordinate.column as usize)
-        } else {
-            None
-        }
-    }
-
-    #[inline(always)]
-    fn set_coord(&mut self, coordinate: &Coordinate, value: T) -> Result<(), Array2DErrorExt> {
-        if coordinate.row >= 0 && coordinate.column >= 0 {
-            self.set(coordinate.row as usize, coordinate.column as usize, value)
-                .map_err(|e| Array2DErrorExt::Base(e))
-        } else {
-            Err(Array2DErrorExt::InvalidCoordinate(coordinate.clone()))
-        }
-    }
-}
-
 impl Warehouse {
     fn try_move(&mut self, direction: &Direction) -> bool {
-        let d = match direction {
-            UP => (-1, 0),
-            DOWN => (1, 0),
-            LEFT => (0, -1),
-            RIGHT => (0, 1)
-        };
+        let d = direction.to_offset();
 
         let robot_coordinate = Coordinate {
             row: self.robot_pos.0 as isize,
@@ -197,10 +134,10 @@ fn parse_moves(input: &str) -> Vec<Direction> {
     input.chars()
         .filter(|&c| matches!(c, '^' | 'v' | '<' | '>'))
         .map(|c| match c {
-            '^' => UP,
-            'v' => DOWN,
-            '<' => LEFT,
-            '>' => RIGHT,
+            '^' => Up,
+            'v' => Down,
+            '<' => Left,
+            '>' => Right,
             _ => unreachable!(),
         })
         .collect()
