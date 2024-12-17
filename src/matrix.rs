@@ -18,6 +18,15 @@ impl Direction {
             Direction::Left => (0, -1),
         }
     }
+
+    pub fn opposite_direction(&self) -> Direction {
+        match self {
+            Direction::Up => Direction::Down,
+            Direction::Right => Direction::Left,
+            Direction::Down => Direction::Up,
+            Direction::Left => Direction::Right,
+        }
+    }
 }
 
 #[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
