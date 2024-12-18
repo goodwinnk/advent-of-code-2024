@@ -22,7 +22,7 @@ impl ThreeBitComputer {
         }
     }
 
-    fn execute(&mut self, program: Vec<u8>) -> Vec<u8> {
+    fn execute(&mut self, program: &Vec<u8>) -> Vec<u8> {
         while self.instruction_pointer < program.len() {
             let opcode = program[self.instruction_pointer];
             let operand = if self.instruction_pointer + 1 < program.len() {
@@ -31,6 +31,9 @@ impl ThreeBitComputer {
                 // If the computer tries to read an opcode past the end of the program, it instead halts.
                 break
             };
+
+            // println!("{:03} {} {}", self.instruction_pointer, opcode, operand);
+
 
             match opcode {
                 0 => self.adv(operand),  // Division to A register
@@ -43,6 +46,8 @@ impl ThreeBitComputer {
                 7 => self.cdv(operand),  // Division to C register
                 _ => panic!("Unknown opcode"),
             }
+
+            // println!("State:\na={:b}\nb={:b}\nc={:b}", self.register_a, self.register_b, self.register_c);
         }
 
         self.output.clone()
@@ -127,6 +132,15 @@ fn parse_program(line: &str) -> Result<Vec<u8>> {
         })
 }
 
+fn execute_program(computer: &mut ThreeBitComputer, program: &Vec<u8>) -> String {
+    let output = computer.execute(program);
+
+    output.iter()
+        .map(|x| x.to_string())
+        .collect::<Vec<String>>()
+        .join(",")
+}
+
 fn part1<R: BufRead>(mut reader: R) -> Result<String> {
     let mut register_a = 0;
     let mut register_b = 0;
@@ -148,13 +162,7 @@ fn part1<R: BufRead>(mut reader: R) -> Result<String> {
     }
 
     let mut computer = ThreeBitComputer::new(register_a, register_b, register_c);
-    let output = computer.execute(program);
-
-    // Convert output to comma-separated string
-    Ok(output.iter()
-        .map(|x| x.to_string())
-        .collect::<Vec<String>>()
-        .join(","))
+    Ok(execute_program(&mut computer, &program))
 }
 
 //noinspection DuplicatedCode
@@ -201,7 +209,7 @@ mod tests {
             // If register C contains 9, the program 2,6 would set register B to 1.
             let mut computer = ThreeBitComputer::new(0, 0, 9);
             let program = vec![2, 6];
-            computer.execute(program);
+            computer.execute(&program);
             assert_eq!(computer.register_b, 1);
         }
 
@@ -210,7 +218,7 @@ mod tests {
             // If register A contains 10, the program 5,0,5,1,5,4 would output 0,1,2.
             let mut computer = ThreeBitComputer::new(10, 0, 0);
             let program = vec![5, 0, 5, 1, 5, 4];
-            let output = computer.execute(program);
+            let output = computer.execute(&program);
             assert_eq!(output, vec![0, 1, 2]);
         }
 
@@ -220,7 +228,7 @@ mod tests {
             // and leave 0 in register A.
             let mut computer = ThreeBitComputer::new(2024, 0, 0);
             let program = vec![0, 1, 5, 4, 3, 0];
-            let output = computer.execute(program);
+            let output = computer.execute(&program);
             assert_eq!(output, vec![4, 2, 5, 6, 7, 7, 7, 7, 3, 1, 0]);
             assert_eq!(computer.register_a, 0);
         }
@@ -230,7 +238,7 @@ mod tests {
             // If register B contains 29, the program 1,7 would set register B to 26.
             let mut computer = ThreeBitComputer::new(0, 29, 0);
             let program = vec![1, 7];
-            computer.execute(program);
+            computer.execute(&program);
             assert_eq!(computer.register_b, 26);
         }
 
@@ -240,7 +248,7 @@ mod tests {
             // the program 4,0 would set register B to 44354.
             let mut computer = ThreeBitComputer::new(0, 2024, 43690);
             let program = vec![4, 0];
-            computer.execute(program);
+            computer.execute(&program);
             assert_eq!(computer.register_b, 44354);
         }
 
@@ -254,7 +262,7 @@ mod tests {
             // Expected output: 4,6,3,5,6,3,5,2,1,0
             let mut computer = ThreeBitComputer::new(729, 0, 0);
             let program = vec![0, 1, 5, 4, 3, 0];
-            let output = computer.execute(program);
+            let output = computer.execute(&program);
             assert_eq!(output, vec![4, 6, 3, 5, 6, 3, 5, 2, 1, 0]);
         }
 
@@ -273,8 +281,22 @@ mod tests {
         }
 
         #[test]
+        fn test2() {
+            test_part1(
+                "0,3,5,4,3,0",
+                indoc! {"
+                    Register A: 117440
+                    Register B: 0
+                    Register C: 0
+
+                    Program: 0,3,5,4,3,0
+                "},
+            );
+        }
+
+        #[test]
         fn part1_final() {
-            part1_result().unwrap();
+            assert_eq!("6,1,6,4,2,4,7,3,5", run_on_day_input(day!(), part1).unwrap());
         }
     }
 
@@ -283,23 +305,77 @@ mod tests {
     mod part2_tests {
         use super::*;
 
-        fn test_part2(expect: i64, input: &str) {
-            assert_eq!(expect, part2(BufReader::new(input.as_bytes())).unwrap());
+        fn execute_experimental_program(a: i64) -> String {
+            let mut computer = ThreeBitComputer::new(a, 0, 0);
+            let program = vec![2,4,1,1,7,5,0,3,1,4,4,4,5,5,3,0];
+            execute_program(&mut computer, &program)
         }
 
-        #[test]
-        fn test1() {
-            test_part2(
-                0,
-                indoc! {"
-                1   2
-            "}
-            );
+        fn experiment(expect: &str, a: i64) {
+            assert_eq!(expect, execute_experimental_program(a));
         }
 
-        #[test]
-        fn part2_final() {
-            part2_result().unwrap();
+        #[test] fn test_bits() {
+            let program = vec![2, 4, 1, 1, 7, 5, 0, 3, 1, 4, 4, 4, 5, 5, 3, 0];
+            let mut result: Vec<i64> = Default::default();
+            result.push(0);
+
+            for i in (0..program.len()).rev() {
+                let mut next: Vec<i64> = Default::default();
+                let target = program[i];
+
+                for var in result.iter() {
+                    println!("i={}, var={}, target={}", i, var, target);
+
+                    for k in 0..=0b111 {
+                        let a = (var << 3) | k as i64;
+                        let mut computer = ThreeBitComputer::new(a, 0, 0);
+                        let output = computer.execute(&program);
+                        if output.first().unwrap() == &target {
+                            next.push(a);
+                        }
+                    }
+                }
+
+                result = next;
+            }
+
+            let a = *(result.first().unwrap());
+            experiment("2,4,1,1,7,5,0,3,1,4,4,4,5,5,3,0", a);
+            println!("{}", a);
+        }
+
+        #[test] fn test0() { experiment("5", 0); }
+        #[test] fn test1() { experiment("5", 1); }
+        #[test] fn test2() { experiment("7", 2); }
+        #[test] fn test3() { experiment("6", 3); }
+        #[test] fn test4() { experiment("1", 4); }
+        #[test] fn test5() { experiment("0", 5); }
+        #[test] fn test6() { experiment("3", 6); }
+        #[test] fn test7() { experiment("2", 7); }
+        #[test] fn test8() { experiment("1,5", 8); }
+        #[test] fn test9() { experiment("5,5", 9); }
+        #[test] fn test10() { experiment("6,5", 10); }
+        #[test] fn test11() { experiment("4,5", 11); }
+        #[test] fn test12() { experiment("1,5", 12); }
+        #[test] fn test13() { experiment("0,5", 13); }
+        #[test] fn test14() { experiment("3,5", 14); }
+        #[test] fn test15() { experiment("2,5", 15); }
+        #[test] fn test16() { experiment("5,7", 16); }
+        #[test] fn test281474976710655() {
+            experiment("5,5,5,5,5,5,5,5,5,5,5,5,5,5,2,2", 281474976710655); // 8^16 - 1
+        }
+
+        #[test] fn test35184372088832() {
+            experiment("5,5,5,5,5,5,5,5,5,5,5,5,5,5,1,5", 35184372088832); // 8^15
+        }
+
+        #[test] fn test35184372088831() {
+            experiment("5,5,5,5,5,5,5,5,5,5,5,5,5,2,2", 35184372088831); // 8^15 - 1
+        }
+
+        #[test] fn test4398046511103() {
+            experiment("5,5,5,5,5,5,5,5,5,5,5,5,2,2", 4398046511103); // 8^14 - 1
         }
     }
 }
