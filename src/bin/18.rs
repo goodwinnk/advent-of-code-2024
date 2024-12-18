@@ -1,10 +1,8 @@
-use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashSet, VecDeque};
+use std::collections::{VecDeque};
 use advent_of_code2024_rust::{day, run_on_day_input};
 use anyhow::*;
 use std::io::{BufRead};
 use array2d::Array2D;
-use advent_of_code2024_rust::matrix::{Array2DExt, Coordinate, Direction};
 
 fn parse_input<R: BufRead>(reader: R) -> Vec<(usize, usize)> {
     reader
@@ -83,9 +81,23 @@ fn part1<R: BufRead>(reader: R) -> Result<u64> {
     part1_full(reader, 71, 71, 1024)
 }
 
+fn part2_full<R: BufRead>(reader: R, rows: usize, cols: usize) -> Result<String> {
+    let bytes = parse_input(reader);
+    let indexed_bytes: Vec<(usize, (usize, usize))> = bytes.iter().cloned().enumerate().collect();
+
+    let split = indexed_bytes.partition_point(|(i, _)| {
+        find_shortest_path(&create_maze(rows, cols, &bytes[..*i])).is_some()
+    });
+
+    let last = bytes[split - 1];
+
+    Ok(format!("{},{}", last.0, last.1))
+}
+
+
 //noinspection DuplicatedCode
-fn part2<R: BufRead>(_reader: R) -> Result<i64> {
-    Ok(0)
+fn part2<R: BufRead>(reader: R) -> Result<String> {
+    part2_full(reader, 71, 71)
 }
 
 //#region
@@ -159,7 +171,7 @@ mod tests {
 
         #[test]
         fn part1_final() {
-            assert_eq!(0, run_on_day_input(day!(), part1).unwrap());
+            assert_eq!(340, run_on_day_input(day!(), part1).unwrap());
         }
     }
 
@@ -168,23 +180,48 @@ mod tests {
     mod part2_tests {
         use super::*;
 
-        fn test_part2(expect: i64, input: &str) {
-            assert_eq!(expect, part2(BufReader::new(input.as_bytes())).unwrap());
+        fn test_part2(expect: &str, input: &str, rows: usize, cols: usize) {
+            assert_eq!(expect, part2_full(BufReader::new(input.as_bytes()), rows, cols).unwrap());
         }
 
         #[test]
         fn test1() {
             test_part2(
-                0,
+                "6,1",
                 indoc! {"
-                1   2
-            "}
+                    5,4
+                    4,2
+                    4,5
+                    3,0
+                    2,1
+                    6,3
+                    2,4
+                    1,5
+                    0,6
+                    3,3
+                    2,6
+                    5,1
+                    1,2
+                    5,5
+                    2,5
+                    6,5
+                    1,4
+                    0,4
+                    6,4
+                    1,1
+                    6,1
+                    1,0
+                    0,5
+                    1,6
+                    2,0
+                "},
+                7, 7
             );
         }
 
         #[test]
         fn part2_final() {
-            part2_result().unwrap();
+            assert_eq!("34,32", run_on_day_input(day!(), part2).unwrap());
         }
     }
 }
