@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use advent_of_code2024_rust::{day, run_on_day_input};
 use anyhow::*;
 use std::io::{BufRead};
@@ -55,6 +55,37 @@ fn can_make_pattern(target: &str, available_patterns: &[String], memo: &mut Hash
     false
 }
 
+fn count_combinations(target: &str, available_patterns: &[String]) -> usize {
+    let mut memo: HashMap<String, usize> = HashMap::new();
+    count_combinations_helper(target, available_patterns, &mut memo)
+}
+
+fn count_combinations_helper(
+    target: &str,
+    available_patterns: &[String],
+    memo: &mut HashMap<String, usize>
+) -> usize {
+    if target.is_empty() {
+        return 1;
+    }
+
+    if let Some(&count) = memo.get(target) {
+        return count;
+    }
+
+    let mut total = 0;
+
+    for pattern in available_patterns {
+        if target.starts_with(pattern) {
+            let remaining = &target[pattern.len()..];
+            total += count_combinations_helper(remaining, available_patterns, memo);
+        }
+    }
+
+    memo.insert(target.to_string(), total);
+    total
+}
+
 fn count_possible_designs(input: &Input) -> usize {
     let mut count = 0;
     for design in &input.designs {
@@ -73,8 +104,15 @@ fn part1<R: BufRead>(reader: R) -> Result<i64> {
 }
 
 //noinspection DuplicatedCode
-fn part2<R: BufRead>(_reader: R) -> Result<i64> {
-    Ok(0)
+fn part2<R: BufRead>(reader: R) -> Result<i64> {
+    let input = parse_input(reader);
+    let mut sum = 0i64;
+    for design in input.designs {
+        let number = count_combinations(&design, &input.patterns) as i64;
+        sum += number;
+    };
+
+    Ok(sum)
 }
 
 //#region
@@ -160,7 +198,7 @@ mod tests {
 
         #[test]
         fn part1_final() {
-            part1_result().unwrap();
+            assert_eq!(355, run_on_day_input(day!(), part1).unwrap());
         }
     }
 
@@ -176,10 +214,19 @@ mod tests {
         #[test]
         fn test1() {
             test_part2(
-                0,
+                16,
                 indoc! {"
-                1   2
-            "}
+                    r, wr, b, g, bwu, rb, gb, br
+
+                    brwrr
+                    bggr
+                    gbbr
+                    rrbgbr
+                    ubwu
+                    bwurrg
+                    brgr
+                    bbrgwb
+                "},
             );
         }
 
