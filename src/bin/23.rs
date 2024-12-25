@@ -59,47 +59,44 @@ fn part1<R: BufRead>(reader: R) -> Result<i64> {
 }
 
 fn build_biggest_cliques<'a>(
-    current_clique: &'a HashSet<String>,
-    candidates: &HashSet<String>,
-    adjacency_list: &HashMap<String, HashSet<String>>) -> HashSet<String> {
+    current_clique: &HashSet<&'a str>,
+    candidates: &HashSet<&'a str>,
+    adjacency_list: &'a HashMap<String, HashSet<String>>) -> HashSet<&'a str> {
     if candidates.is_empty() {
         return current_clique.clone();
     }
 
-    // println!(
-    //     "current_clique: {:?}, candidates: {:?}",
-    //     current_clique,
-    //     candidates
-    // );
-
     let mut visited = HashSet::new();
     let mut biggest_clique = current_clique.clone();
-    
-    for candidate in candidates {
-        let mut new_clique = current_clique.clone();
-        new_clique.insert(candidate.clone());
-        let new_candidates: &HashSet<String> =
-            &adjacency_list[candidate.as_str()]
-                .difference(&visited)
-                .map(|x| x.clone())
-                .collect::<HashSet<String>>()
-                .intersection(candidates)
-                .map(|x| x.clone())
-                .collect();
 
-        let new_clique = build_biggest_cliques(&new_clique, new_candidates, adjacency_list);
+    for &candidate in candidates {
+        let mut new_clique = current_clique.clone();
+        new_clique.insert(candidate);
+
+        // Create new candidates set by finding intersection of candidate's neighbors and current candidates
+        let new_candidates: HashSet<&str> = adjacency_list[candidate]
+            .iter()
+            .map(String::as_str)
+            .filter(|&x| !visited.contains(x))
+            .collect::<HashSet<_>>()
+            .intersection(&candidates)
+            .copied()
+            .collect();
+
+        let new_clique = build_biggest_cliques(&new_clique, &new_candidates, adjacency_list);
         if new_clique.len() > biggest_clique.len() {
             biggest_clique = new_clique;
         }
 
-        visited.insert(candidate.clone());
+        visited.insert(candidate);
     }
 
     biggest_clique
 }
 
-fn find_biggest_clique(adjacency_list: &HashMap<String, HashSet<String>>) -> HashSet<String> {
-    build_biggest_cliques(&HashSet::new(), &adjacency_list.keys().map(|x| x.clone()).collect(), adjacency_list)
+fn find_biggest_clique(adjacency_list: &HashMap<String, HashSet<String>>) -> HashSet<&str> {
+    let initial_candidates: HashSet<&str> = adjacency_list.keys().map(String::as_str).collect();
+    build_biggest_cliques(&HashSet::new(), &initial_candidates, adjacency_list)
 }
 
 //noinspection DuplicatedCode
