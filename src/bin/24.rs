@@ -112,7 +112,7 @@ fn simulate_circuit(circuit: &Circuit) -> Result<i64> {
         .filter(|(k, _)| k.starts_with('z'))
         .collect::<Vec<_>>()  // collect to sort
         .iter()
-        .sorted_by(|(k1, _), (k2, _)| k1.cmp(k2))
+        .sorted_by(|(k1, _), (k2, _)| k1.cmp(k2).reverse())
         .map(|(_, &value)| if value { '1' } else { '0' })
         .collect();
 
@@ -240,7 +240,7 @@ mod tests {
 
         #[test]
         fn part1_final() {
-            part1_result().unwrap();
+            assert_eq!(51657025112326, run_on_day_input(day!(), part1).unwrap());
         }
     }
 
