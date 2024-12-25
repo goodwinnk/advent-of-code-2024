@@ -2,6 +2,7 @@ use advent_of_code2024_rust::{day, run_on_day_input};
 use anyhow::*;
 use std::io::{BufRead};
 use std::collections::HashMap;
+use itertools::Itertools;
 use regex::Regex;
 
 #[derive(Debug, Clone, Copy)]
@@ -106,16 +107,16 @@ fn simulate_circuit(circuit: &Circuit) -> Result<i64> {
     }
 
     // Collect all z-wires and convert to decimal
-    let mut z_wires: Vec<_> = wire_values
+    let binary_string: String = wire_values
         .iter()
         .filter(|(k, _)| k.starts_with('z'))
+        .collect::<Vec<_>>()  // collect to sort
+        .iter()
+        .sorted_by(|(k1, _), (k2, _)| k1.cmp(k2))
+        .map(|(_, &value)| if value { '1' } else { '0' })
         .collect();
-    z_wires.sort_by(|(k1, _), (k2, _)| k1.cmp(k2));
 
-    let mut result = 0;
-    for (_, &value) in z_wires {
-        result = (result << 1) | (if value { 1 } else { 0 });
-    }
+    let result = i64::from_str_radix(&binary_string, 2)?;
 
     Ok(result)
 }
