@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use advent_of_code2024_rust::{day, run_on_day_input};
 use anyhow::*;
 use std::io::{BufRead};
+use itertools::Itertools;
 
 fn parse_input<R: BufRead>(reader: R) -> HashMap<String, HashSet<String>> {
     let mut adjacency_list: HashMap<String, HashSet<String>> = HashMap::new();
@@ -57,9 +58,56 @@ fn part1<R: BufRead>(reader: R) -> Result<i64> {
     )
 }
 
+fn build_biggest_cliques<'a>(
+    current_clique: &'a HashSet<String>,
+    candidates: &HashSet<String>,
+    adjacency_list: &HashMap<String, HashSet<String>>) -> HashSet<String> {
+    if candidates.is_empty() {
+        return current_clique.clone();
+    }
+
+    // println!(
+    //     "current_clique: {:?}, candidates: {:?}",
+    //     current_clique,
+    //     candidates
+    // );
+
+    let mut visited = HashSet::new();
+    let mut biggest_clique = current_clique.clone();
+    
+    for candidate in candidates {
+        let mut new_clique = current_clique.clone();
+        new_clique.insert(candidate.clone());
+        let new_candidates: &HashSet<String> =
+            &adjacency_list[candidate.as_str()]
+                .difference(&visited)
+                .map(|x| x.clone())
+                .collect::<HashSet<String>>()
+                .intersection(candidates)
+                .map(|x| x.clone())
+                .collect();
+
+        let new_clique = build_biggest_cliques(&new_clique, new_candidates, adjacency_list);
+        if new_clique.len() > biggest_clique.len() {
+            biggest_clique = new_clique;
+        }
+
+        visited.insert(candidate.clone());
+    }
+
+    biggest_clique
+}
+
+fn find_biggest_clique(adjacency_list: &HashMap<String, HashSet<String>>) -> HashSet<String> {
+    build_biggest_cliques(&HashSet::new(), &adjacency_list.keys().map(|x| x.clone()).collect(), adjacency_list)
+}
+
 //noinspection DuplicatedCode
-fn part2<R: BufRead>(_reader: R) -> Result<String> {
-    Ok("".to_string())
+fn part2<R: BufRead>(reader: R) -> Result<String> {
+    let adjacency_list = parse_input(reader);
+    let biggest_clique = find_biggest_clique(&adjacency_list);
+    let password = biggest_clique.iter().sorted().join(",").to_string();
+    Ok(password)
 }
 
 //#region
@@ -195,7 +243,7 @@ mod tests {
 
         #[test]
         fn part2_final() {
-            part2_result().unwrap();
+            assert_eq!("bd,bu,dv,gl,qc,rn,so,tm,wf,yl,ys,ze,zr", run_on_day_input(day!(), part2).unwrap());
         }
     }
 }
