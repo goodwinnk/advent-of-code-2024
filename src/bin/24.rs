@@ -2,6 +2,7 @@ use advent_of_code2024_rust::{day, run_on_day_input};
 use anyhow::*;
 use std::io::{BufRead};
 use std::collections::HashMap;
+use regex::Regex;
 
 #[derive(Debug, Clone, Copy)]
 enum Gate {
@@ -25,6 +26,9 @@ struct Circuit {
 }
 
 fn parse_input<R: BufRead>(reader: R) -> Result<Circuit> {
+    let initial_value_re = Regex::new(r"^([a-z0-9]+):\s*(\d+)$")?;
+    let connection_re = Regex::new(r"^([a-z0-9]+)\s+(AND|OR|XOR)\s+([a-z0-9]+)\s+->\s+([a-z0-9]+)$")?;
+
     let mut initial_values = HashMap::new();
     let mut connections = Vec::new();
     let mut reading_connections = false;
@@ -37,39 +41,30 @@ fn parse_input<R: BufRead>(reader: R) -> Result<Circuit> {
         }
 
         if !reading_connections {
-            // Parse initial values
-            if let Some((wire, value)) = line.split_once(':') {
-                let value = value.trim().parse::<i32>()? != 0;
-                initial_values.insert(wire.trim().to_string(), value);
+            if let Some(captures) = initial_value_re.captures(&line) {
+                let wire = captures[1].to_string();
+                let value = captures[2].parse::<i32>()? != 0;
+                initial_values.insert(wire, value);
             }
         } else {
-            // Parse connections
-            let parts: Vec<&str> = line.split("->").collect();
-            if parts.len() != 2 {
-                continue;
+            if let Some(captures) = connection_re.captures(&line) {
+                let input1 = captures[1].to_string();
+                let gate = match &captures[2] {
+                    "AND" => Gate::And,
+                    "OR" => Gate::Or,
+                    "XOR" => Gate::Xor,
+                    _ => continue,
+                };
+                let input2 = captures[3].to_string();
+                let output = captures[4].to_string();
+
+                connections.push(Connection {
+                    gate,
+                    input1,
+                    input2,
+                    output,
+                });
             }
-
-            let inputs = parts[0].trim();
-            let output = parts[1].trim().to_string();
-            let input_parts: Vec<&str> = inputs.split_whitespace().collect();
-
-            if input_parts.len() != 3 {
-                continue;
-            }
-
-            let gate = match input_parts[1] {
-                "AND" => Gate::And,
-                "OR" => Gate::Or,
-                "XOR" => Gate::Xor,
-                _ => continue,
-            };
-
-            connections.push(Connection {
-                gate,
-                input1: input_parts[0].to_string(),
-                input2: input_parts[2].to_string(),
-                output,
-            });
         }
     }
 
