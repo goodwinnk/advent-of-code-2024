@@ -243,23 +243,40 @@ fn parse_input<R: BufRead>(reader: R) -> Vec<String> {
         .collect()
 }
 
-fn create_numpad_keyboard() -> NumericKeypad {
-    let first = DirectionKeypad::remote_directional_keypad(&MANUAL_KEYBOARD_COST);
-    let second = DirectionKeypad::remote_directional_keypad(&first.press_cost);
-    NumericKeypad::numeric_keypad(&second.press_cost)
+fn create_numpad_keyboard(number_of_robot_direction_keypads: usize) -> NumericKeypad {
+    let mut current_robot_keypad =
+        DirectionKeypad::remote_directional_keypad(&MANUAL_KEYBOARD_COST);
+
+    for _ in 2..=number_of_robot_direction_keypads {
+        current_robot_keypad = DirectionKeypad::remote_directional_keypad(&current_robot_keypad.press_cost);
+    }
+
+    NumericKeypad::numeric_keypad(&current_robot_keypad.press_cost)
 }
+
+fn create_numpad_keyboard_part1() -> NumericKeypad {
+    create_numpad_keyboard(2)
+}
+
+fn create_numpad_keyboard_part2() -> NumericKeypad {
+    create_numpad_keyboard(25)
+}
+
 
 //noinspection DuplicatedCode
 fn part1<R: BufRead>(reader: R) -> Result<i64> {
     let codes = parse_input(reader);
-    let numpad = create_numpad_keyboard();
+    let numpad = create_numpad_keyboard_part1();
 
     Ok(codes.iter().map(|code| code_cost(code, &numpad)).sum())
 }
 
 //noinspection DuplicatedCode
-fn part2<R: BufRead>(_reader: R) -> Result<i64> {
-    Ok(0)
+fn part2<R: BufRead>(reader: R) -> Result<i64> {
+    let codes = parse_input(reader);
+    let numpad = create_numpad_keyboard_part2();
+
+    Ok(codes.iter().map(|code| code_cost(code, &numpad)).sum())
 }
 
 //#region
@@ -297,7 +314,7 @@ mod tests {
         }
 
         fn test_key_cost(expect: i64, code: &str) {
-            let numpad = create_numpad_keyboard();
+            let numpad = create_numpad_keyboard_part1();
             assert_eq!(expect, key_cost(code, &numpad));
         }
 
@@ -352,18 +369,8 @@ mod tests {
         }
 
         #[test]
-        fn test1() {
-            test_part2(
-                0,
-                indoc! {"
-                1   2
-            "}
-            );
-        }
-
-        #[test]
         fn part2_final() {
-            part2_result().unwrap();
+            assert_eq!(203640915832208, run_on_day_input(day!(), part2).unwrap());
         }
     }
 }
