@@ -1,7 +1,7 @@
 pub mod matrix;
 
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{BufReader};
 use code_timing_macros::time_snippet;
 use anyhow::*;
 
@@ -12,6 +12,11 @@ macro_rules! day {
             .rsplit_once("/").map(|(_, last)| last).unwrap()
             .rsplit_once('.').map(|(before, _)| before).unwrap()
     }
+}
+
+pub fn day_input(day: &str) -> BufReader<File> {
+    let input_path = format!("input/{}.txt", day);
+    BufReader::new(File::open(input_path).unwrap())
 }
 
 pub fn run_on_day_input<F, R>(day: &str, operation: F) -> Result<R>
