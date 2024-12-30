@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet, VecDeque};
 use advent_of_code2024_rust::{day, run_on_day_input};
 use anyhow::*;
 use std::io::{BufRead};
@@ -36,16 +37,61 @@ fn generate_nth_secret(initial: u64, n: usize) -> u64 {
     secret
 }
 
-//noinspection DuplicatedCode
-fn part1<R: BufRead>(reader: R) -> Result<u64> {
-    Ok(reader.lines().flatten().map(
-        |line| generate_nth_secret(line.parse().unwrap(), 2000)
-    ).sum())
+fn parse_input<R: BufRead>(reader: R) -> Vec<u64> {
+    reader.lines()
+        .flatten()
+        .map(|line| line.parse().unwrap())
+        .collect()
 }
 
 //noinspection DuplicatedCode
-fn part2<R: BufRead>(_reader: R) -> Result<i64> {
-    Ok(0)
+fn part1<R: BufRead>(reader: R) -> Result<u64> {
+    Ok(parse_input(reader).iter().map(|initial| generate_nth_secret(*initial, 2000)).sum())
+}
+
+fn process_buyer(initial_secret: u64, n: usize, sequence_prices: &mut HashMap<Vec<i32>, u64>) {
+    let size = 4;
+
+    let mut secret = initial_secret;
+    let mut seen_sequences = HashSet::new();
+    let mut changes = VecDeque::with_capacity(size);
+
+    let mut prev_price = secret % 10;
+
+    for i in 1..=n {
+        secret = calculate_next_secret(secret);
+        let current_price = secret % 10;
+        if i > size {
+            changes.pop_front();
+        }
+        changes.push_back(current_price as i32 - prev_price as i32);
+        prev_price = current_price;
+
+        if changes.len() < size {
+            continue;
+        }
+
+        let sequence: Vec<i32> = changes.iter().copied().collect();
+        if seen_sequences.insert(sequence.clone()) {
+            sequence_prices.entry(sequence)
+                .and_modify(|total| *total += current_price)
+                .or_insert(current_price);
+        }
+    }
+}
+
+//noinspection DuplicatedCode
+fn part2<R: BufRead>(reader: R) -> Result<u64> {
+    let initial_secrets = parse_input(reader);
+    let mut sequence_prices: HashMap<Vec<i32>, u64> = HashMap::new();
+    for &secret in &initial_secrets {
+        process_buyer(secret, 2000, &mut sequence_prices);
+    }
+
+    Ok(*sequence_prices
+        .iter()
+        .max_by_key(|&(_, price)| price)
+        .unwrap().1)
 }
 
 //#region
@@ -134,23 +180,28 @@ mod tests {
     mod part2_tests {
         use super::*;
 
-        fn test_part2(expect: i64, input: &str) {
+        fn test_part2(expect: u64, input: &str) {
             assert_eq!(expect, part2(BufReader::new(input.as_bytes())).unwrap());
         }
 
         #[test]
         fn test1() {
             test_part2(
-                0,
+                24,
                 indoc! {"
-                1   2
-            "}
+                    1
+                    10
+                    100
+                    2024
+                "},
             );
         }
 
         #[test]
         fn part2_final() {
-            part2_result().unwrap();
+            fn part2_final() {
+                assert_eq!(2272, run_on_day_input(day!(), part2).unwrap());
+            }
         }
     }
 }
