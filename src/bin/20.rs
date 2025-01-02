@@ -1,8 +1,10 @@
-use std::collections::VecDeque;
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::fmt::{Debug, Display};
 use advent_of_code2024_rust::{day, run_on_day_input};
 use anyhow::*;
 use std::io::{BufRead};
 use array2d::Array2D;
+use itertools::Itertools;
 use Cell::{End, Path, Start, Wall};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -26,7 +28,7 @@ impl Cell {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct Point {
     row: i32,
     col: i32,
@@ -38,12 +40,35 @@ impl Point {
     }
 }
 
+impl Display for Point {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "(r:{}, c:{})", self.row, self.col)
+    }
+}
+
 struct RaceTrack {
     map: Array2D<Cell>,
     start: Point,
     end: Point,
     rows: i32,
     cols: i32,
+}
+
+#[derive(Debug)]
+struct SavingRoute {
+    before: i64,
+    cheat_start: Point,
+    cheat_end: Point,
+    cheat_steps: i64,
+    after: i64,
+    savings: i64,
+}
+
+impl Display for SavingRoute {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SavingRoute {{ before: {}, cheat_start: {}, cheat_end: {}, cheat_steps: {}, after: {}, savings: {} }}",
+               self.before, self.cheat_start, self.cheat_end, self.cheat_steps, self.after, self.savings)
+    }
 }
 
 impl RaceTrack {
@@ -106,6 +131,49 @@ impl RaceTrack {
         costs
     }
 
+    fn find_reachable_by_walls(&self, start: Point, max_steps: i64) -> Vec<(Point, i64)> {
+        let mut visited = HashSet::new();
+        let mut points = Vec::new();
+        let mut queue = VecDeque::new();
+
+        assert!(self.map[(start.row as usize, start.col as usize)].is_walkable());
+        let directions = [(0, 1), (1, 0), (0, -1), (-1, 0)];
+        for (dr, dc) in directions.iter() {
+            let next = Point::new(start.row + dr, start.col + dc);
+            if !self.is_valid_point(next) || self.map[(next.row as usize, next.col as usize)].is_walkable() {
+                continue;
+            }
+
+            // Wall
+            queue.push_back((next, 1));
+        }
+
+        visited.insert(start);
+
+        while let Some((current, steps)) = queue.pop_front() {
+            if steps > max_steps || !self.is_valid_point(current) {
+                continue;
+            }
+
+            if visited.contains(&current) {
+                continue;
+            }
+
+            visited.insert(current);
+
+            if self.map[(current.row as usize, current.col as usize)].is_walkable() {
+                points.push((current, steps));
+            } else {
+                for (dr, dc) in directions.iter() {
+                    let next = Point::new(current.row + dr, current.col + dc);
+                    queue.push_back((next, steps + 1));
+                }
+            }
+        }
+
+        points
+    }
+
     fn find_all_reachable_points(&self, start: Point, max_steps: i64) -> Vec<(Point, i64)> {
         let mut visited = Array2D::filled_with(false, self.rows as usize, self.cols as usize);
         let mut points = Vec::new();
@@ -139,7 +207,7 @@ impl RaceTrack {
         points
     }
 
-    fn find_best_cheats(&self, min_savings: i64, max_cheat_duration: i64) -> Vec<(Point, Point, i64)> {
+    fn find_best_cheats(&self, min_savings: i64, max_cheat_duration: i64) -> Vec<SavingRoute> {
         let from_start = self.build_cost_matrix(self.start);
         let from_end = self.build_cost_matrix(self.end);
 
@@ -160,7 +228,7 @@ impl RaceTrack {
                 }
 
                 // Find all points reachable within max_cheat_duration steps through walls
-                let reachable_points = self.find_all_reachable_points(current, max_cheat_duration);
+                let reachable_points = self.find_reachable_by_walls(current, max_cheat_duration);
                 for (end_point, cheat_steps) in reachable_points {
                     if !self.map[(end_point.row as usize, end_point.col as usize)].is_walkable() {
                         continue;
@@ -175,7 +243,14 @@ impl RaceTrack {
                     let savings = baseline - total_cost;
 
                     if savings >= min_savings {
-                        cheats.push((current, end_point, savings));
+                        cheats.push(SavingRoute {
+                            before: cost_to_start,
+                            cheat_start: current,
+                            cheat_end: end_point,
+                            cheat_steps,
+                            after: cost_to_end,
+                            savings,
+                        });
                     }
                 }
             }
@@ -348,6 +423,7 @@ mod tests {
     //noinspection SpellCheckingInspection
     #[cfg(test)]
     mod part2_tests {
+        use itertools::Itertools;
         use super::*;
 
         fn test_cheats(saving: i64, expected_cheats: usize) {
@@ -371,7 +447,109 @@ mod tests {
 
             let track = RaceTrack::from_reader(BufReader::new(input.as_bytes())).unwrap();
             let cheats = track.find_best_cheats(saving, 20);
-            assert_eq!(expected_cheats, cheats.iter().filter(|&(_, _, savings)| *savings == saving).count());
+            let filtered_cheats = cheats.iter().filter(|&route| route.savings == saving).collect_vec();
+            println!("{}", filtered_cheats.iter().map(|r| format!("{}", r)).sorted().join("\n"));
+            assert_eq!(expected_cheats, filtered_cheats.len());
+        }
+
+        #[test]
+        fn cheat_only_once() {
+            let input = indoc! {"
+                #######
+                #.....#
+                #.#.#.#
+                #S#.#E#
+                #######
+            "};
+
+            let track = RaceTrack::from_reader(BufReader::new(input.as_bytes())).unwrap();
+            let best_cheat_distance = track.find_best_cheats(4, 4);
+
+            // Can't use cheats twice
+            assert_eq!(best_cheat_distance.len(), 0);
+        }
+
+        #[test]
+        fn no_optiomal_cheats() {
+            let input = indoc! {"
+                ######
+                #....#
+                #.##.#
+                #S#E.#
+                ######
+                ######
+            "};
+
+            let track = RaceTrack::from_reader(BufReader::new(input.as_bytes())).unwrap();
+            let best_cheat_distance = track.find_best_cheats(4, 3);
+            println!("{}", best_cheat_distance.iter().map(|r| format!("{}", r)).sorted().join("\n"));
+
+            // Can't use cheats twice
+            assert_eq!(best_cheat_distance.len(), 2);
+        }
+
+        #[test]
+        fn comparison_test() {
+            let input = indoc! {"
+                ###############
+                #...#...#.....#
+                #.#.#.#.#.###.#
+                #S#...#.#.#...#
+                #######.#.#.###
+                #######.#.#...#
+                #######.#.###.#
+                ###..E#...#...#
+                ###.#######.###
+                #...###...#...#
+                #.#####.#.###.#
+                #.#...#.#.#...#
+                #.#.#.#.#.#.###
+                #...#...#...###
+                ###############
+            "};
+
+            let track = RaceTrack::from_reader(BufReader::new(input.as_bytes())).unwrap();
+            let reachable_by_walls: Vec<(Point, i64)> =
+                track.find_reachable_by_walls(Point { row: 3, col: 1 }, 7).iter()
+                .filter(|(_, s)| *s == 7)
+                .map(|(p, s)| (*p, *s))
+                .collect();
+            let reachable_walkable_points: Vec<(Point, i64)> =
+                track.find_all_reachable_points(Point { row: 3, col: 1 }, 7).iter()
+                    .filter(|(p, _)| track.map[(p.row as usize, p.col as usize)].is_walkable())
+                    .filter(|(_, s)| *s == 7)
+                    .map(|(p, s)| (*p, *s))
+                    .collect();
+
+            assert_eq!(reachable_walkable_points.iter().map(|p| format!("{:?}", p)).sorted().join("\n"),
+                       reachable_by_walls.iter().map(|p| format!("{:?}", p)).sorted().join("\n"));
+
+        }
+
+        #[test]
+        fn test_long_way() {
+            let input = indoc! {"
+                ###############
+                #...#...#.....#
+                #.#.#.#.#.###.#
+                #S#...#.#.#...#
+                #######.#.#.###
+                #######.#.#...#
+                #######.#.###.#
+                ###..E#...#...#
+                ###.#######.###
+                #...###...#...#
+                #.#####.#.###.#
+                #.#...#.#.#...#
+                #.#.#.#.#.#.###
+                #...#...#...###
+                ###############
+            "};
+
+            let track = RaceTrack::from_reader(BufReader::new(input.as_bytes())).unwrap();
+            let reachable_by_walls: Vec<(Point, i64)> =
+                track.find_reachable_by_walls(Point { row: 1, col: 2 }, 20);
+            println!("{}", reachable_by_walls.iter().map(|p| format!("{:?}", p)).sorted().join("\n"));
         }
 
         #[test]
@@ -380,18 +558,23 @@ mod tests {
         }
 
         #[test]
-        fn test_76() {
-            test_cheats(76, 3);
-        }
-
-        #[test]
         fn test_70() {
             test_cheats(70, 12);
         }
 
         #[test]
+        fn test_74() {
+            test_cheats(74, 4);
+        }
+
+        #[test]
+        fn test_76() {
+            test_cheats(76, 3);
+        }
+
+        #[test]
         fn part2_final() {
-            assert_eq!(985737, run_on_day_input(day!(), part1).unwrap());
+            assert_eq!(985737, run_on_day_input(day!(), part2).unwrap());
         }
     }
 }
