@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::ops::Add;
 use array2d::Array2D;
 
@@ -33,6 +34,12 @@ impl Direction {
 pub struct Coordinate {
     pub row: isize,
     pub column: isize,
+}
+
+impl Display for Coordinate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "(r:{}, c:{})", self.row, self.column)
+    }
 }
 
 impl Add<(isize, isize)> for Coordinate {
